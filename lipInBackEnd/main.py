@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 import os
 from openai import OpenAI
 from pydantic import BaseModel
+import requests
+from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
 load_dotenv()
 app = FastAPI()
@@ -13,7 +16,10 @@ class CommentsBody(BaseModel):
     post: str
     prompt: str | None = None #Optional field with a default value of None
     tone: str | None = None #Optional field with a default value of None
-
+    persona: str | None = None #Optional field with a default value of None
+    language: str | None = None #Optional field with a default value of None
+class profileLink(BaseModel):
+    profile_url: str
 class PostBody(BaseModel):
     userReq: str
     # prompt: str
@@ -45,39 +51,139 @@ def get_ai_comments(body: CommentsBody):
     post = body.post
     prompt = body.prompt if body.prompt else "Professional, positive, conversational comment"
     tone = body.tone if body.tone else "Professional, positive, conversational tone"
+    persona = body.persona if body.persona else "Mid level professional with a focus on collaboration and innovation"
+    language = body.language if body.language else 'Use American English with plain, conversational language. Short sentences, common vocabulary, American spelling (color, organize), friendly and easy to understand.'
     try:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that generates engaging LinkedIn comments."},
+                {"role": "system", "content": "You are an AI that writes authentic, high-quality LinkedIn comments that sound like they were written by a real professional—not generic or promotional."},
                 {"role": "user", "content": f"""
-                You are an expert LinkedIn communication assistant who writes concise, thoughtful, and human-sounding comments.
 
-TASK:
-Analyze the LinkedIn post provided and generate a comment that strictly follows:
-1) the intent/style defined in {prompt}
-2) the tone defined in {tone}
+## User Profile
+${persona}
 
-The comment must clearly reflect the action requested in {prompt}
-(e.g., asking a clarifying question, adding an insight, or respectfully challenging an idea).
+## Post Content to Analyze
+"${post}"
 
-REQUIREMENTS:
-- Length: 2–3 short lines only
-- Writing style: natural, humble, and curious when appropriate
-- Avoid generic phrasing or excessive enthusiasm
-- Do NOT use clichés such as “Great post!” or “Thanks for sharing”
-- Reference at least one relevant point from the LinkedIn post
-- If the comment includes a question, begin with a brief appreciation
-- Use no emojis unless emojis appear in the original post
-- Ensure the tone aligns precisely with {tone}
+## Tone Requirements
+${tone}
 
-INPUTS:
-- {post}: the LinkedIn post content
-- {prompt}: the specific instruction defining the comment’s intent or style
-- {tone}: the specific tone for the comment
+## Commenting Language
+${language}
 
-OUTPUT:
-Write only the final comment (no explanations, no titles, no quotes)."""}
+## User's Additional Instructions
+${prompt}
+
+
+## MANDATORY SPECIFICITY RULES:
+
+🚫 BANNED PHRASES (DO NOT USE):
+- "truly inspiring" / "inspiring journey"
+- "really resonates" / "resonates with me"
+- "well said" / "couldn't agree more"
+- "powerful testament" / "testament to"
+- "great insights" / "interesting perspective"
+- Any phrase that sounds like a motivational poster
+- Donot Quote an EXACT phrase, number, or example from the post
+
+✅ REQUIRED ELEMENTS:
+1. Reference an similar phrase, number, or example from the post
+2. Share a CONCRETE, SPECIFIC experience with details (not vague relatability)
+3. Use SPECIFIC language: names, numbers, timeframes, situations, not abstract concepts
+
+---
+---
+
+✅ VARIED OPENING STYLES (rotate these):
+
+1. **Direct Question**: "How long did the rollback take?"
+2. **Stat/Number Hook**: "3-hour recovery is impressive—..."
+3. **Shared Experience**: "Hit the same issue last month—..."
+4. **Specific Detail**: "The validation checklist approach..."
+5. **Casual Observation**: "Wait, you automated the rollback?"
+6. **Challenge/Pushback**: "Interesting, but doesn't that slow deployment?"
+7. **Direct Statement**: "This happened to us too."
+8. **Tool/Method Reference**: "Using GitHub Actions for validation is smart—..."
+
+ROTATE opening styles. DO NOT use "When you mentioned..." or similar patterns repeatedly.
+
+---
+## SPECIFICITY FORMULA:
+
+Instead of: "Your journey is inspiring"
+Write: "When you mentioned [EXACT DETAIL FROM POST], it reminded me of [SPECIFIC SITUATION with CONCRETE DETAILS]"
+
+Instead of: "This resonates with my experience"
+Write: "I faced the same issue when [SPECIFIC EVENT] - we solved it by [SPECIFIC ACTION] and saw [SPECIFIC RESULT]"
+
+Instead of: "Great point about resilience"
+Write: "The part where you [EXACT ACTION/QUOTE FROM POST] - did you [SPECIFIC FOLLOW-UP QUESTION]?"
+
+---
+
+## EXAMPLES OF ULTRA-SPECIFIC COMMENTS:
+
+Post: "Moved to Berlin 2 years ago. The first 6 months were brutal - couldn't understand German bureaucracy, missed my mom's cooking, and my startup failed. But I rebuilt, learned the language, and just closed our Series A."
+
+❌ Generic: "The resilience you've shown is truly inspiring. Your growth reflects deep personal transformation."
+
+✅ Ultra-Specific: "The 6-month mark is brutal—I hit the same wall in Amsterdam and almost gave up. What made you stick it out? For me it was finding a Stammtisch that met Thursdays. Also, closing a Series A after a failed startup is a massive credibility boost with investors. How did you frame the failure story in your pitch?"
+
+---
+
+Post: "Unpopular opinion: Code reviews are killing productivity. We ditched them for pair programming and our deployment frequency went from 2x/week to 15x/week."
+
+❌ Generic: "Interesting perspective on development workflows. Every team is different."
+
+✅ Ultra-Specific: "15x deployments is wild but I'm skeptical—doesn't pair programming cut individual velocity in half? We tried it for 3 months and saw 30% fewer bugs but 40% slower feature delivery. Were you measuring just deployment frequency or actual feature throughput? Also curious if your team is < 10 people where this scales better."
+
+---
+
+Post: "Just failed my third startup in 5 years. Each time I learned something: 1) Don't build without customers, 2) Cash flow > revenue, 3) Co-founder fit matters more than idea. Now consulting and honestly happier."
+
+❌ Generic: "Your growth journey shows incredible resilience. These lessons are valuable."
+
+✅ Ultra-Specific: "The 'co-founder fit matters more than idea' lesson hit me hard. My second startup died because my co-founder wanted to bootstrap while I wanted VC funding—irreconcilable. Are you keeping consulting as your main gig or building runway for attempt #4? Also, what's your burn rate tolerance now vs startup #1?"
+
+---
+
+## YOUR TASK:
+
+1. Find the MOST SPECIFIC element in the post:
+   - A statistic or number
+   - A concrete action they took
+   - A specific challenge they faced
+   - An exact quote or phrase
+   - A named person, place, or thing
+
+2. Build your comment around that SPECIFIC element using:
+   - Exact references ("When you said X...", "The part about Y...", "Your Z approach...")
+   - Concrete details from your experience (numbers, names, timeframes)
+   - Specific follow-up questions with context
+3. Persona alignment (CRITICAL)
+   - The tone, perspective, vocabulary, and focus of the comment must fully reflect the provided persona {persona} and language {language}, including:
+   - Their level of seniority or expertise
+   - Their typical concerns, values, and priorities
+   - How they would naturally speak, question, and relate experiences
+   What they would care about or notice in this post
+   ⚠️ Do not sound generic, neutral, or detached.
+   ⚠️ Do not summarize the whole post.
+   ⚠️ Do not invent details not implied by the post or plausible for the persona.
+4. Make it IMPOSSIBLE to use this comment on another post
+LENGTH REQUIREMENT:
+- DEFAULT: 10 words (1-2 sentences MAX)
+- ONLY write longer(2-4 sentences 50-100 words) if user explicitly says "long comment" or "detailed response"
+- Count your words before outputting - if over 40 words without explicit request, CUT IT DOWN
+## VALIDATION:
+Before outputting, ask: "Could I copy-paste this to 3 other posts in the same category?"
+- If YES → TOO GENERIC, add more specific details
+- If NO → Good, output it
+
+## OUTPUT:
+Write the ultra-specific comment. NO generic phrases. NO abstract concepts. ONLY concrete specifics.
+       
+"""}
             ],
             max_tokens=100,
             n=1,
@@ -87,6 +193,8 @@ Write only the final comment (no explanations, no titles, no quotes)."""}
         comment = response.choices[0].message.content.strip()
         print("prompt:", prompt)
         print("tone:", tone)
+        print("persona:", persona)
+        print("language:", language)
         return {"comment": comment}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -141,6 +249,51 @@ def get_ai_postsContent(body: PostBody):
         return {"posts": posts}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# @app.post("/AIprofile_scrapper")
+# def get_ai_profile_scrapper(body: profileLink):
+#     profile = body.profile_url
+    
+#     with sync_playwright() as p:
+#         browser = p.chromium.launch(headless=True)  # Add headless=True
+#         page = browser.new_page()
+        
+#         try:
+#             print(f"Scraping profile: {profile}")
+#             page.goto(profile, wait_until='networkidle')  # Wait for network to be idle
+            
+#             # Wait for main content to load
+#             page.wait_for_selector('main', timeout=10000)
+            
+#             html = page.content()
+#             soup = BeautifulSoup(html, 'html.parser')
+            
+#             main_div = soup.find('main')
+            
+#             if main_div:
+#                 sections = main_div.find_all('section')
+#                 print(f"Found {len(sections)} sections")
+                
+#                 if len(sections) > 0:  # Check if index 3 exists
+#                     about_section = sections[1]
+#                     print(about_section)
+#                     about_content = about_section.find('span', {'class': 'visually-hidden'})
+                    
+#                     if about_content:
+#                         return {'about': about_content.text}
+#                     else:
+#                         return {'error': 'About content span not found'}
+#                 else:
+#                     return {'error': f'Only found {len(sections)} sections, need at least 4'}
+#             else:
+#                 return {'error': 'No main div found'}
+        
+#         except Exception as e:
+#             return {'error': f'Error scraping profile: {str(e)}'}
+        
+#         finally:
+#             browser.close()
+
 
 
 if __name__ == "__main__":

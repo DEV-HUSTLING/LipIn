@@ -1,16 +1,44 @@
-import {CommentComponent} from'./utils.jsx'
+import {CommentComponent, getUserLink} from'./utils.jsx'
 
-function addIfNotExists(post) {
+function addIfNotExists(post,postContainer) {
     if (!post || !(post instanceof Element)) return;
     // Don't add twice — CommentComponent creates `.ai-comment-panel` and sets `data-lipin-comment-root`.
     if (post.querySelector('.ai-comment-panel') || post.querySelector('[data-lipin-comment-root]')) return;
-    CommentComponent(post);
+    CommentComponent(post,postContainer);
 }
 
 function scanAndAddButtons() {
-    const posts = document.querySelectorAll('div.feed-shared-update-v2');
-    posts.forEach(p => addIfNotExists(p));
+    // check the comment click
+    document.addEventListener('click',function(e){
+        const cmntBtn = e.target.closest('button.comment-button')
+        
+        if(cmntBtn){
+        console.log('🔴 CLICK HANDLER FIRED - Count:');
+
+            setTimeout(()=>{
+                const postContainer = cmntBtn.closest('div.feed-shared-update-v2');
+                if(postContainer){
+                    const cmntEditor = postContainer.querySelector('.comments-comment-texteditor')
+                    if(cmntEditor){
+                        console.log('Comment editor found!')
+                        addIfNotExists(cmntEditor,postContainer)
+      
+                    }else{
+                        setTimeout(()=>{
+                        const cmntEditor = postContainer.querySelector('.comments-comment-texteditor')
+                        if(cmntEditor) addIfNotExists(cmntEditor,postContainer)
+                        }, 800)
+                    }
+
+                }
+            },300)
+        }
+    }, true)
+    // const posts = document.querySelectorAll('div.comments-comment-texteditor');
+    // posts.forEach(p => addIfNotExists(p));
 }
+
+
 
 // Observe DOM mutations so dynamically loaded posts also get the comment UI.
 const observer = new MutationObserver((mutations) => {
@@ -32,6 +60,8 @@ const observer = new MutationObserver((mutations) => {
 });
 
 observer.observe(document.body, { childList: true, subtree: true });
+
+
 
 // Initial scan for existing posts on page load
 scanAndAddButtons();
