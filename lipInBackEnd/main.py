@@ -26,9 +26,9 @@ class PostBody(BaseModel):
 origins = [
     "http://localhost:3000",  # React default
     "http://127.0.0.1:3000",
-        "http://127.0.0.1:8000",
+    "http://127.0.0.1:8000",
     "http://localhost:8000",  # React default
-
+    "https://lipin.onrender.com",
     "https://myfrontenddomain.com",
       "chrome-extension://mdopdgfnmofdffmlipbnflfbobefbeam"  # Production frontend
 ]
