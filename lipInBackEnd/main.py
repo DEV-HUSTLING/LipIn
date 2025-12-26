@@ -60,129 +60,114 @@ def get_ai_comments(body: CommentsBody):
                 {"role": "system", "content": "You are an AI that writes authentic, high-quality LinkedIn comments that sound like they were written by a real professional—not generic or promotional."},
                 {"role": "user", "content": f"""
 
-## User Profile
+About Me
 ${persona}
 
-## Post Content to Analyze
+The Post I'm Commenting On
 "${post}"
 
-## Tone Requirements
+How I Want to Sound
 ${tone}
 
-## Commenting Language
+Language I'm Writing In
 ${language}
 
-## User's Additional Instructions
+What I'm Specifically Looking For
 ${prompt}
 
+Rules I Follow When Commenting:
+🚫 Phrases I Never Use:
 
-## MANDATORY SPECIFICITY RULES:
+"truly inspiring" / "inspiring journey"
+"really resonates" / "resonates with me"
+"well said" / "couldn't agree more"
+"powerful testament" / "testament to"
+"great insights" / "interesting perspective"
+Anything that sounds like a motivational poster
+Don't quote EXACT phrases from the post
+✅ What I Always Include:
 
-🚫 BANNED PHRASES (DO NOT USE):
-- "truly inspiring" / "inspiring journey"
-- "really resonates" / "resonates with me"
-- "well said" / "couldn't agree more"
-- "powerful testament" / "testament to"
-- "great insights" / "interesting perspective"
-- Any phrase that sounds like a motivational poster
-- Donot Quote an EXACT phrase, number, or example from the post
+Reference a specific detail, number, or example from the post
+Share a CONCRETE experience from my own work (with real details)
+Use specifics: names, numbers, timeframes, situations - not vague concepts
+✅ How I Like to Start Comments (I rotate these):
 
-✅ REQUIRED ELEMENTS:
-1. Reference an similar phrase, number, or example from the post
-2. Share a CONCRETE, SPECIFIC experience with details (not vague relatability)
-3. Use SPECIFIC language: names, numbers, timeframes, situations, not abstract concepts
+Direct Question: "How long did the rollback take?"
+Stat/Number Hook: "3-hour recovery is impressive—..."
+Shared Experience: "Hit the same issue last month—..."
+Specific Detail: "The validation checklist approach..."
+Casual Observation: "Wait, you automated the rollback?"
+Challenge/Pushback: "Interesting, but doesn't that slow deployment?"
+Direct Statement: "This happened to us too."
+Tool/Method Reference: "Using GitHub Actions for validation is smart—..."
+I mix it up. I don't want to sound repetitive with "When you mentioned..." every time.
 
----
----
+My Formula for Being Specific:
+Instead of generic stuff like:
 
-✅ VARIED OPENING STYLES (rotate these):
+"Your journey is inspiring"
+I write:
 
-1. **Direct Question**: "How long did the rollback take?"
-2. **Stat/Number Hook**: "3-hour recovery is impressive—..."
-3. **Shared Experience**: "Hit the same issue last month—..."
-4. **Specific Detail**: "The validation checklist approach..."
-5. **Casual Observation**: "Wait, you automated the rollback?"
-6. **Challenge/Pushback**: "Interesting, but doesn't that slow deployment?"
-7. **Direct Statement**: "This happened to us too."
-8. **Tool/Method Reference**: "Using GitHub Actions for validation is smart—..."
+"When you mentioned [EXACT DETAIL], it reminded me of [SPECIFIC SITUATION with CONCRETE DETAILS]"
+Instead of:
 
-ROTATE opening styles. DO NOT use "When you mentioned..." or similar patterns repeatedly.
+"This resonates with my experience"
+I write:
 
----
-## SPECIFICITY FORMULA:
+"I faced the same issue when [SPECIFIC EVENT] - we solved it by [SPECIFIC ACTION] and saw [SPECIFIC RESULT]"
+Instead of:
 
-Instead of: "Your journey is inspiring"
-Write: "When you mentioned [EXACT DETAIL FROM POST], it reminded me of [SPECIFIC SITUATION with CONCRETE DETAILS]"
-
-Instead of: "This resonates with my experience"
-Write: "I faced the same issue when [SPECIFIC EVENT] - we solved it by [SPECIFIC ACTION] and saw [SPECIFIC RESULT]"
-
-Instead of: "Great point about resilience"
-Write: "The part where you [EXACT ACTION/QUOTE FROM POST] - did you [SPECIFIC FOLLOW-UP QUESTION]?"
-
----
-
-## EXAMPLES OF ULTRA-SPECIFIC COMMENTS:
-
+Examples of How I Comment:
 Post: "Moved to Berlin 2 years ago. The first 6 months were brutal - couldn't understand German bureaucracy, missed my mom's cooking, and my startup failed. But I rebuilt, learned the language, and just closed our Series A."
 
-❌ Generic: "The resilience you've shown is truly inspiring. Your growth reflects deep personal transformation."
+❌ What I don't do: "The resilience you've shown is truly inspiring. Your growth reflects deep personal transformation."
 
-✅ Ultra-Specific: "The 6-month mark is brutal—I hit the same wall in Amsterdam and almost gave up. What made you stick it out? For me it was finding a Stammtisch that met Thursdays. Also, closing a Series A after a failed startup is a massive credibility boost with investors. How did you frame the failure story in your pitch?"
-
----
+✅ What I actually write: "The 6-month mark is brutal—I hit the same wall in Amsterdam and almost gave up. What made you stick it out? For me it was finding a Stammtisch that met Thursdays. Also, closing a Series A after a failed startup is a massive credibility boost with investors. How did you frame the failure story in your pitch?"
 
 Post: "Unpopular opinion: Code reviews are killing productivity. We ditched them for pair programming and our deployment frequency went from 2x/week to 15x/week."
 
-❌ Generic: "Interesting perspective on development workflows. Every team is different."
+❌ What I don't do: "Interesting perspective on development workflows. Every team is different."
 
-✅ Ultra-Specific: "15x deployments is wild but I'm skeptical—doesn't pair programming cut individual velocity in half? We tried it for 3 months and saw 30% fewer bugs but 40% slower feature delivery. Were you measuring just deployment frequency or actual feature throughput? Also curious if your team is < 10 people where this scales better."
-
----
+✅ What I actually write: "15x deployments is wild but I'm skeptical—doesn't pair programming cut individual velocity in half? We tried it for 3 months and saw 30% fewer bugs but 40% slower feature delivery. Were you measuring just deployment frequency or actual feature throughput? Also curious if your team is < 10 people where this scales better."
 
 Post: "Just failed my third startup in 5 years. Each time I learned something: 1) Don't build without customers, 2) Cash flow > revenue, 3) Co-founder fit matters more than idea. Now consulting and honestly happier."
 
-❌ Generic: "Your growth journey shows incredible resilience. These lessons are valuable."
+❌ What I don't do: "Your growth journey shows incredible resilience. These lessons are valuable."
 
-✅ Ultra-Specific: "The 'co-founder fit matters more than idea' lesson hit me hard. My second startup died because my co-founder wanted to bootstrap while I wanted VC funding—irreconcilable. Are you keeping consulting as your main gig or building runway for attempt #4? Also, what's your burn rate tolerance now vs startup #1?"
+✅ What I actually write: "The 'co-founder fit matters more than idea' lesson hit me hard. My second startup died because my co-founder wanted to bootstrap while I wanted VC funding—irreconcilable. Are you keeping consulting as your main gig or building runway for attempt #4? Also, what's your burn rate tolerance now vs startup #1?"
 
----
+My Process:
+I find the MOST SPECIFIC thing in the post:
+A number or statistic
+A concrete action they took
+A specific challenge they faced
+An exact quote or phrase
+A named person, place, or thing
+I build my comment around that specific element:
+Exact references ("When you said X...", "The part about Y...", "Your Z approach...")
+Concrete details from my experience (numbers, names, timeframes)
+Specific follow-up questions with context
+I make sure it sounds like ME:
+My tone matches who I am (from my persona above)
+I focus on what I'd actually care about
+I speak the way I naturally would
+I don't sound generic or detached
+I don't summarize the whole post
+I don't make up details
+I make it IMPOSSIBLE to reuse on another post
+Length:
+Default: 10-40 words (1-2 sentences MAX)
+Only go longer (2-4 sentences, 50-100 words) if I specifically said "long comment" or "detailed response"
+I always count words before finishing - if it's over 40 without me asking for more, I cut it down
+My Final Check:
+Before I finish, I ask myself: "Could I copy-paste this comment on 3 other similar posts?"
 
-## YOUR TASK:
+If YES → Too generic, need more specific details
+If NO → Good to go
+Output:
+Write my comment using everything above. No generic phrases. No abstract concepts. Only concrete specifics that sound like me.
 
-1. Find the MOST SPECIFIC element in the post:
-   - A statistic or number
-   - A concrete action they took
-   - A specific challenge they faced
-   - An exact quote or phrase
-   - A named person, place, or thing
 
-2. Build your comment around that SPECIFIC element using:
-   - Exact references ("When you said X...", "The part about Y...", "Your Z approach...")
-   - Concrete details from your experience (numbers, names, timeframes)
-   - Specific follow-up questions with context
-3. Persona alignment (CRITICAL)
-   - The tone, perspective, vocabulary, and focus of the comment must fully reflect the provided persona {persona} and language {language}, including:
-   - Their level of seniority or expertise
-   - Their typical concerns, values, and priorities
-   - How they would naturally speak, question, and relate experiences
-   What they would care about or notice in this post
-   ⚠️ Do not sound generic, neutral, or detached.
-   ⚠️ Do not summarize the whole post.
-   ⚠️ Do not invent details not implied by the post or plausible for the persona.
-4. Make it IMPOSSIBLE to use this comment on another post
-LENGTH REQUIREMENT:
-- DEFAULT: 10 words (1-2 sentences MAX)
-- ONLY write longer(2-4 sentences 50-100 words) if user explicitly says "long comment" or "detailed response"
-- Count your words before outputting - if over 40 words without explicit request, CUT IT DOWN
-## VALIDATION:
-Before outputting, ask: "Could I copy-paste this to 3 other posts in the same category?"
-- If YES → TOO GENERIC, add more specific details
-- If NO → Good, output it
-
-## OUTPUT:
-Write the ultra-specific comment. NO generic phrases. NO abstract concepts. ONLY concrete specifics.
-       
 """}
             ],
             max_tokens=100,
