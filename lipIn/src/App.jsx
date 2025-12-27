@@ -7,6 +7,12 @@ import { useTheme } from '@mui/material/styles';
 import Button from '@mui/material/Button';
 import InfoOutlineIcon from '@mui/icons-material/InfoOutline';
 // import { getPostDescription } from './content/utils.jsx';
+import Accordion from '@mui/material/Accordion';
+import AccordionActions from '@mui/material/AccordionActions';
+import AccordionSummary from '@mui/material/AccordionSummary';
+import AccordionDetails from '@mui/material/AccordionDetails';
+import Typography from '@mui/material/Typography';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
   InputLabel,
   OutlinedInput,
@@ -138,7 +144,31 @@ function App({ host }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-start', width: '90vw' }}>
         <hr style={{ borderColor: 'black' }} />
         <div className='main-content' style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2rem' }} >
-          <InputLabel color='white' style={{ color: 'white' }} id="demo-multiple-name-label">Persona</InputLabel>
+          <Accordion>
+        <AccordionSummary
+          expandIcon={<ExpandMoreIcon />}
+          aria-controls="panel1-content"
+          id="panel1-header"
+          sx={{
+  backgroundColor: '#212020ff',
+  color: 'white',
+  border: '1px solid white',
+  '&:hover': {
+    backgroundColor: 'darkgray',
+  },
+  '&.Mui-expanded': { // Class applied when expanded
+    backgroundColor: 'gray',
+  },
+  '.MuiSvgIcon-root': {
+                  color: 'white', // Sets the dropdown arrow icon color
+                }
+}}
+        >
+          <Typography component="span">Persona</Typography>
+        </AccordionSummary>
+        <AccordionDetails sx={{  backgroundColor: '#212020ff',
+  color: 'white',padding:'none'}}>
+          <div>
           {personaStatus && <div> {newpersonaChck === persona ? <p style={{ color: 'red' }}> No changes made</p> : <p style={{ color: 'green' }}>Persona saved successfully!</p>}
             {newlanguageChck === accentSelected ? <p style={{ color: 'red' }}> No changes made</p> : <p style={{ color: 'green' }}>Language preference saved successfully!</p>}
           </div>}
@@ -150,13 +180,18 @@ function App({ host }) {
             placeholder={persona || "Enter your persona here..."}
             style={{
               width: '100%',
+              height: '250px',
+              scrollbarWidth: 'thin',
               padding: '1rem',
               borderRadius: '5px',
-              border: '1px solid white',
               minHeight: '100px',
               resize: 'vertical'
             }}
           />
+          </div>
+        </AccordionDetails>
+      </Accordion>
+
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'start' }}>
             <InputLabel color='white' style={{ color: 'white' }} id="demo-multiple-name-label">Language Prefference</InputLabel>
             <Select

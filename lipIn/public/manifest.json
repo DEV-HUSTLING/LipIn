@@ -36,7 +36,9 @@
             "customAssets/Proactive.png",
             "customAssets/Expertise.png",
             "customAssets/close.png",
-            "customAssets/icon48.png"
+            "customAssets/icon48.png",
+            "customAssets/logo.png"
+
         ],
       "matches": [
         "https://www.linkedin.com/*"

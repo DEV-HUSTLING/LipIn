@@ -1,8 +1,6 @@
 ;
 import { useRef, useState, useEffect } from 'react';
 import { getPostDescription } from './content/utils.jsx';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import DoneIcon from '@mui/icons-material/Done';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import WorkOutlineIcon from '@mui/icons-material/WorkOutline';
 import HandshakeIcon from '@mui/icons-material/Handshake';
@@ -10,6 +8,7 @@ import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
 import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
 import SentimentNeutralIcon from '@mui/icons-material/SentimentNeutral';
 import SendIcon from '@mui/icons-material/Send';
+// import logo from '../public/customAssets/logo.png';
 const Comment = ({ postEl, cmntArea }) => {
   const [theme, setTheme] = useState("light");
   const [userCmntPrompt, setUserCmntPrompt] = useState('');
@@ -20,6 +19,7 @@ const Comment = ({ postEl, cmntArea }) => {
   const [tones, setTones] = useState(false)
   const [tonePrompt, setTonePrompt] = useState('')
   const lastInsertedComment = useRef('');
+  const [loader, setLoader] = useState(false)
 useEffect(() => {
     // Function to detect theme from the actual page
     const detectPageTheme = () => {
@@ -123,11 +123,14 @@ useEffect(() => {
       mediaQuery.removeEventListener("change", mediaListener);
     };
   }, []);
+      if (loader) {
+      cmntArea.textContent = "Generating comment...";
+    }
   useEffect(() => {
-    if (aiCmnt && cmntArea && aiCmnt !== lastInsertedComment.current) {
-      console.log('Auto-inserting comment without events');
 
+    if (aiCmnt && cmntArea && aiCmnt !== lastInsertedComment.current) {
       // Method 1: Direct textContent (NO events fired)
+      setLoader(false);
       cmntArea.textContent = aiCmnt;
 
       // Remember what we inserted
@@ -153,6 +156,7 @@ useEffect(() => {
     }
   }, [aiCmnt, cmntArea]);
   const handleGenerateComment = () => {
+    setLoader(true);
     const postContent = getPostDescription(postEl);
 
     if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
@@ -179,19 +183,19 @@ useEffect(() => {
   ]
 
 
-
+  const lipInLogo = chrome.runtime.getURL('customAssets/logo.png');
   // We call the background via chrome.runtime.sendMessage directly from the click handler below.
   return (<>
     <div style={{ display: 'flex', width: '100%', justifyContent: 'end' }}>
       <button onClick={(e) => {
         e.preventDefault();      // Prevent default button behavior
         e.stopPropagation(); setCmntTool(!cmntTool)
-      }} className="LipIn-comment-post-button" style={{ background: 'transparent', }}>
-        <AutoFixHighIcon style={{ fontSize: '2.5rem', color: '#E45A92' }} />
+      }} className="LipIn-comment-post-button" style={{ background: 'transparent', boxShadow:'0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)' }}>
+        <img src={lipInLogo} alt="LipIn Logo" style={{ width: '2rem', height: '2rem', marginLeft: '5px' }} />
       </button>
     </div>
     {cmntTool && <div className="LipIn-comment-container" style={{ position: 'absolute', display: 'flex', flexDirection: 'column', gap: '1rem', width: '500px', top: '40px', 
-        backgroundColor: theme === 'dark' ? '#1a1a1a' : '#ffffff', borderRadius: '10px', padding: '1rem', boxShadow: '0 4px 8px 0 rgba(228, 96, 146, 0.2), 0 6px 20px 0 rgba(228, 96, 146, 0.19)', zIndex: '1000' }}>
+        backgroundColor: theme === 'dark' ? '#1a1a1a' : '#ffffff', borderRadius: '10px', padding: '1rem', boxShadow: '0 4px 8px 0 rgba(255, 255, 255, 0.2), 0 6px 20px 0 rgba(255, 255, 255, 0.4)', zIndex: '1000' }}>
       <div style={{
         width: '100%',
         height: '50px',
