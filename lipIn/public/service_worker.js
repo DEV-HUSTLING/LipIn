@@ -7,6 +7,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Keep port open
   }
 });
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message && message.action === 'openDashboard') {
+    chrome.tabs.create({
+      url: chrome.runtime.getURL("landingPage.html")
+    })
+    
+    return true; // Keep port open
+  }
+});
+
 
 async function handleGenerateComment(message) {
   const result = await chrome.storage.local.get(['persona']);
