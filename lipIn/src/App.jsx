@@ -248,6 +248,13 @@ function App({ host }) {
             }
 
           }}>Save</Button>
+          <Button onClick={() => {
+            if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
+              chrome.runtime.sendMessage({ action: 'openDashboard' }, (response) => {
+                console.log('Dashboard tab opened');
+              });
+            }
+          }}>Dashboard</Button>
           {/* <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
             <p>Total Tokens: 3000</p>
 

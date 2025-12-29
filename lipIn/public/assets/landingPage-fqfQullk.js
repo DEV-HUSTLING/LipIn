@@ -1,0 +1,1 @@
+import{j as t,c as e,b as r}from"./client-uskoXxVP.js";function o(){return t.jsx("div",{children:"dashboard2"})}e.createRoot(document.getElementById("root")).render(t.jsx(r.StrictMode,{children:t.jsx(o,{})}));
