@@ -8,10 +8,12 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://www.linkedin.com/*"
+    "https://www.linkedin.com/*",
+    "https://*.firebaseapp.com/*"
   ],
   "background": {
-    "service_worker": "service_worker.js"
+    "service_worker": "service_worker.js",
+    "type": "module"
   },
   "content_scripts": [
     {
@@ -49,5 +51,8 @@
     "default_popup": "index.html",
     "default_title": "My commentor"
   },
-  "manifest_version": 3
+  "manifest_version": 3,
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
 }
