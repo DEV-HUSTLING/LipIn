@@ -1,9 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap');
+
 @import "tailwindcss";
 #root {
   max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
+    font-family: "Lato";
+
+
 }
 .ext-title-card{
   text-align: left;
@@ -20,7 +25,60 @@
 .logo.react:hover {
   filter: drop-shadow(0 0 2em #61dafbaa);
 }
-
+.commontTracker
+  {
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid rgb(228, 90, 146);
+    box-shadow: rgba(242, 107, 249, 0.65) 0px 4px 8px 0px, rgba(242, 107, 249, 0.65) 0px 6px 20px 0px;
+    border-radius: 8px;
+    font-family: Lato !important;
+    font-weight: 400;
+    font-style: normal;
+}
+.commentCount{
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    justify-content: space-evenly;
+    color: black;
+}
+.commentCount .commentValue{
+  font-size: 3rem;
+}
+.commentHist .commentValue{
+  font-size: 2rem;
+}
+.commontTracker p{
+  font-size:1.5rem;
+  font-weight:500;
+}
+.commontTracker h3{
+  font-size:2rem !important;
+    font-family: "Lato" !important;
+  font-weight: bold;
+}
+.commentDate span{
+  font-size: 2rem;
+}
+.Dark_DatePicker span{
+  color: white;
+}
+.Light_DatePicker span{
+  color: black;
+}
+.Dark_DatePicker button{
+  color: white;
+}
+.Light_DatePicker button{
+  color: black;
+}
+.commentDate{
+  width: 100% !important;
+}
+.commentDate fieldset{
+  border: none !important;
+}
 @keyframes logo-spin {
   from {
     transform: rotate(0deg);

@@ -171,12 +171,15 @@ useEffect(() => {
     isSaving.current = true; // Set flag
 
     try {
+    const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dateOnly = today.getTime();
       console.log('Attempting to save to Firebase:', { url, text });
       await addDoc(
         collection(db, "comments", url,"items"),
         {
           text,
-          createdAt: Date.now(),
+          createdAt: dateOnly,
           source: "linkedin"
         }
       );
