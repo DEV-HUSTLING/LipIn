@@ -5,6 +5,7 @@ function addIfNotExists(post,postContainer) {
     // Don't add twice — CommentComponent creates `.ai-comment-panel` and sets `data-lipin-comment-root`.
     if (post.querySelector('.ai-comment-panel') || post.querySelector('[data-lipin-comment-root]')) return;
     CommentComponent(post,postContainer);
+    
 }
 
 function scanAndAddButtons() {
@@ -13,8 +14,6 @@ function scanAndAddButtons() {
         const cmntBtn = e.target.closest('button.comment-button')
         
         if(cmntBtn){
-        console.log('🔴 CLICK HANDLER FIRED - Count:');
-
             setTimeout(()=>{
                 const postContainer = cmntBtn.closest('div.feed-shared-update-v2');
                 if(postContainer){
@@ -38,7 +37,36 @@ function scanAndAddButtons() {
     // posts.forEach(p => addIfNotExists(p));
 }
 
+function getProfileUrl(sidebar) {
+  if (!sidebar) return;
 
+  const stickyContent = sidebar.querySelector('.scaffold-layout__sticky-content');
+  if (!stickyContent) return;
+
+  const profileCard = stickyContent.querySelector('.artdeco-card.profile-card');
+  if (!profileCard) return;
+
+  const extract = () => {
+    const link = profileCard.querySelector('a[href^="/in/"], a[href^="https://www.linkedin.com/in/"]');
+    if (!link) return false;
+    getUserLink(link,sidebar)
+    chrome.runtime.sendMessage({
+        action:'profileURL',
+        profileURL:link.href
+    })
+    console.log('[LipIn] PROFILE URL:', link.href);
+    return true;
+  };
+  if (extract()) return;
+  const observer = new MutationObserver(() => {
+    if (extract()) observer.disconnect();
+  });
+
+  observer.observe(profileCard, {
+    childList: true,
+    subtree: true
+  });
+}
 
 // Observe DOM mutations so dynamically loaded posts also get the comment UI.
 const observer = new MutationObserver((mutations) => {
@@ -55,7 +83,19 @@ const observer = new MutationObserver((mutations) => {
                     nested.forEach(n => addIfNotExists(n));
                 }
             }
+            if (!(node instanceof Element)) return;
+            // If the added node is itself a post
+            if (node.matches && node.matches('aside.scaffold-layout__sidebar')) {
+                getProfileUrl(node);
+            } else {
+                // Otherwise, check if new posts exist inside the added subtree
+                const nested = node.querySelectorAll && node.querySelectorAll('aside.scaffold-layout__sidebar');
+                if (nested && nested.length) {
+                    nested.forEach(n => getProfileUrl(n));
+                }
+            }
         });
+        
     });
 });
 
@@ -65,3 +105,6 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 // Initial scan for existing posts on page load
 scanAndAddButtons();
+document
+  .querySelectorAll('aside.scaffold-layout__sidebar')
+  .forEach(getProfileUrl);

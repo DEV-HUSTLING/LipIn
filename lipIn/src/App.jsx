@@ -13,16 +13,16 @@ import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+
 import {
   InputLabel,
   OutlinedInput,
   MenuItem,
   Select
 } from '@mui/material';
-
 function App({ host }) {
-  const theme = useTheme();
 
+  const theme = useTheme();
   const ITEM_HEIGHT = 48;
   const ITEM_PADDING_TOP = 8;
   const MenuProps = {
@@ -79,6 +79,7 @@ function App({ host }) {
   const hostName = window.location.hostname;
   console.log("persona", persona);
   useEffect(() => {
+
     const defaultAccent = 'Use American English with plain, conversational language. Short sentences, common vocabulary, American spelling (color, organize), friendly and easy to understand.';
 
     // Check if chrome APIs are available

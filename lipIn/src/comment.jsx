@@ -8,8 +8,14 @@ import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
 import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
 import SentimentNeutralIcon from '@mui/icons-material/SentimentNeutral';
 import SendIcon from '@mui/icons-material/Send';
+import {app}from './firebase.jsx';
+import { getFirestore, collection,
+  getDocs,
+  addDoc,
+  query,
+  limit } from "firebase/firestore";
 // import logo from '../public/customAssets/logo.png';
-const Comment = ({ postEl, cmntArea }) => {
+const Comment = ({ postEl, cmntArea, cmntBtn }) => {
   const [theme, setTheme] = useState("light");
   const [userCmntPrompt, setUserCmntPrompt] = useState('');
   const [cmntTool, setCmntTool] = useState(false);
@@ -20,7 +26,13 @@ const Comment = ({ postEl, cmntArea }) => {
   const [tonePrompt, setTonePrompt] = useState('')
   const lastInsertedComment = useRef('');
   const [loader, setLoader] = useState(false)
+  const [url, setUrl] = useState("");
+  const db = getFirestore(app)
+  const profileSlugRef = useRef(null);
+const isSaving = useRef(false);
+
 useEffect(() => {
+
     // Function to detect theme from the actual page
     const detectPageTheme = () => {
       // Method 1: Check LinkedIn's body background color
@@ -123,11 +135,74 @@ useEffect(() => {
       mediaQuery.removeEventListener("change", mediaListener);
     };
   }, []);
-      if (loader) {
-      cmntArea.textContent = "Generating comment...";
+if (loader) {
+  cmntArea.textContent = "Generating comment...";
+}
+useEffect(() => {
+  chrome.storage.local.get('profileURl', (result) => {
+    if (result.profileURl) {
+      const extractedUrl = result.profileURl.split("/in/")[1]?.split("/")[0];
+      setUrl(extractedUrl);
+      console.log('Profile URL set:', extractedUrl); // Debug log
     }
-  useEffect(() => {
+  });
+}, []);
+useEffect(() => {
+  const handler = async (e) => {
+    if (e.target.closest('.LipIn-comment-container')) return;
+    const commentButton = e.target.closest(cmntBtn);
+    if (!commentButton) return;
+      if (isSaving.current) {
+      console.log('Already saving, skipping...');
+      return;
+    }
+    console.log('btn clicked');
+    const text = cmntArea?.textContent || cmntArea?.innerText || lastInsertedComment.current;
+    
+    if (!text) {
+      console.log('No text to save');
+      return;
+    }
+    
+    if (!url) {
+      console.log('No profile URL available');
+      return;
+    }
+    isSaving.current = true; // Set flag
 
+    try {
+    const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dateOnly = today.getTime();
+      console.log('Attempting to save to Firebase:', { url, text });
+      await addDoc(
+        collection(db, "comments", url,"items"),
+        {
+          text,
+          createdAt: dateOnly,
+          source: "linkedin"
+        }
+      );
+      console.log('Successfully saved to Firebase');
+            lastInsertedComment.current = '';
+
+    } catch (error) {
+      console.error('Firebase save error:', error);
+     } finally {
+      // Reset flag after a short delay
+      setTimeout(() => {
+        isSaving.current = false;
+      }, 1000);
+    }
+    
+  };
+
+  document.addEventListener("click", handler);
+  return () => document.removeEventListener("click", handler);
+}, [url, db, cmntBtn]);
+
+  useEffect(() => {
+        
     if (aiCmnt && cmntArea && aiCmnt !== lastInsertedComment.current) {
       // Method 1: Direct textContent (NO events fired)
       setLoader(false);
@@ -154,6 +229,7 @@ useEffect(() => {
       // DO NOT dispatch any events - this causes auto-posting
       // cmntArea.dispatchEvent(new Event('input', { bubbles: true })); // ❌ NO!
     }
+
   }, [aiCmnt, cmntArea]);
   const handleGenerateComment = () => {
     setLoader(true);
@@ -168,16 +244,56 @@ useEffect(() => {
           console.warn('chrome.runtime.lastError:', chrome.runtime.lastError);
         }
         setAiComnt(res.comments);
+        
       });
     } else {
       console.error('No extension runtime available to send message.');
     }
     setCmntTool(false);
+
   };
   const tonesList = [
     { name: 'Formal', icon: <WorkOutlineIcon style={{ fontSize: '2rem', color: 'pink' }} />, prompt: 'Write a professional comment that acknowledges the key points made in the post. Use formal, polished language with a respectful and neutral tone. Structure your comment to recognize the main argument or achievement, then add a brief professional observation or insight. Avoid emojis and casual language. Keep it concise and business-appropriate.' },
     { name: 'Appreciate', icon: <HandshakeIcon style={{ fontSize: '2rem', color: 'pink' }} />, prompt: 'Write a genuinely appreciative comment that highlights specific value from the post. Express sincere gratitude for the insight, effort, or perspective shared. Acknowledge what made the post valuable or impactful. Use warm, encouraging language that feels authentic—not generic praise. Focus purely on appreciation without adding suggestions or critique.' },
-    { name: 'Tips', icon: <TipsAndUpdatesIcon style={{ fontSize: '2rem', color: 'pink' }} />, prompt: 'Write a comment that first acknowledges the value in the post, then adds a helpful, related insight or personal experience. Share a complementary tip, alternative approach, or lesson learned that builds on their idea. Keep the tone collaborative and supportive—frame your addition as "something I found helpful too" rather than correcting or instructing. Make it feel like you\'re contributing to the conversation, not giving unsolicited advice.' },
+    { 
+  name: 'Add Value', 
+  icon: <TipsAndUpdatesIcon style={{ fontSize: '2rem', color: 'pink' }} />, 
+  prompt: `You are writing as the commenter themselves — not about them, AS them.
+
+Write a comment that adds genuine value by sharing a lived experience, specific insight, or practical lesson that builds on the post.
+
+STRICT RULES:
+- Write in first person. You ARE the person commenting.
+- NO generic advice like "communication is key" or "consistency matters"
+- NO phrases: "great post," "thanks for sharing," "I agree," "this resonates," "this is important"
+- NO teaching tone or educational content
+- NO promotional language or thought leadership posturing
+
+WHAT TO DO:
+- Reference something SPECIFIC from the post (a detail, claim, or example)
+- Share a real moment from your experience: something you tried, failed at, discovered, or learned the hard way
+- Make it concrete: actual tactics, specific numbers, real outcomes, or honest mistakes
+- Keep it conversational and grounded — like you're talking to a colleague
+- 2-4 sentences unless the story demands more
+
+EXAMPLES OF GOOD "ADD VALUE" COMMENTS:
+
+✓ "The part about async standups hit home. We tried daily Slack check-ins last year and everyone ignored them until we added a 2-question format with a 5-minute response window. Participation went from 40% to 95% in two weeks."
+
+✓ "I made this exact mistake with our pricing page. Added five features to the comparison table thinking it would help, and our trial signups dropped 18%. Turned out people just wanted to see the price and one clear differentiator."
+
+✓ "Your point about code reviews reminded me of when I spent 3 hours reviewing a PR that should've been 3 separate commits. Now I just reject anything over 300 lines and our review time dropped by half."
+
+EXAMPLES OF BAD "ADD VALUE" COMMENTS (NEVER DO THIS):
+
+✗ "Great insights! I would add that clear communication and setting expectations early are really important for team alignment."
+
+✗ "This is so true! In my experience, consistency and discipline are the keys to success in any endeavor."
+
+✗ "Love this perspective. I've found that staying curious and asking questions really helps build better relationships."
+
+Write a comment that feels unmistakably personal — something only someone with this specific experience could write. No fluff, no filler, just real value.`
+},
     { name: 'Curious', icon: <QuestionAnswerIcon style={{ fontSize: '2rem', color: 'pink' }} />, prompt: 'Write an engaged comment that shows genuine interest in learning more. Reference a specific point from the post that intrigued you, then ask a thoughtful, specific question to deepen your understanding or explore the topic further. Use a conversational, open-minded tone that invites dialogue. Your curiosity should feel authentic—like you genuinely want to know their perspective or experience on something specific they mentioned.' },
     { name: 'Differ', icon: <SentimentNeutralIcon style={{ fontSize: '2rem', color: 'pink' }} />, prompt: 'Write a respectful comment that offers an alternative perspective or contrasting experience. Start by acknowledging the validity of their point, then share a different angle, counterexample, or "in my experience, I found..." statement. Frame it as adding to the discussion rather than contradicting. Use phrases like "Another perspective might be..." or "I\'ve seen different results when..." Keep the tone collaborative and curious, not argumentative. The goal is to enrich the conversation with diverse viewpoints.' },
   ]

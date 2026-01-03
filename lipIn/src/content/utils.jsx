@@ -1,11 +1,12 @@
 // import React from "react";
 import { createRoot } from "react-dom/client";
 import Comment from "../comment.jsx";
+import CommentTracker from "../commentTracker.jsx";
 export  function CommentComponent(postEl,postContainer) {
         const mainClass = postEl?.querySelector('.display-flex.flex-wrap')?.querySelector('.display-flex.justify-space-between')?.querySelector('.display-flex')
         const Area = postEl?.querySelector('.ql-editor.ql-blank')
         const cmntArea = Area?.querySelector('p')
-
+        const cmntBtn = 'button.comments-comment-box__submit-button--cr.artdeco-button.artdeco-button--1.artdeco-button--primary.ember-view'
     // If this post already has our mounted UI, don't add again
     if (postEl.querySelector('.lipin-comment-panel') || postEl.querySelector('[data-lipin-comment-root]')) return;
         
@@ -21,7 +22,7 @@ export  function CommentComponent(postEl,postContainer) {
         // Mount React component
         const root = createRoot(panelInput);
         // Pass the post element to the Comment component so it can read context (e.g., post description)
-        root.render(<Comment postEl={postContainer} cmntArea={cmntArea} />);
+        root.render(<Comment postEl={postContainer} cmntArea={cmntArea} cmntBtn={cmntBtn} />);
         // let actionBar = postEl.querySelector('.feed-shared-social-action-bar.feed-shared-social-action-bar--full-width.feed-shared-social-action-bar--has-social-counts')?.parentElement;
 
 }
@@ -34,17 +35,13 @@ export function getPostDescription(postEl) {
     return "";
 
 }
-export function getUserLink(postEl) {
-    try {
-        if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
-            chrome.runtime.sendMessage({ action: 'profile', profile_url:postEl.href },(res)=>{
-                console.log(res);
-            });
-        }
-    } catch (e) {
-        // ignore messaging errors in content script context
+export function getUserLink(link, classEle) {
+    const main_class = classEle.querySelector('div[role="region"][aria-label="Side Bar"]')
+    if(main_class){
+        const comnt_panel = document.createElement('div');
+        comnt_panel.className = 'lipin_user_comment_tracker';
+        main_class.appendChild(comnt_panel)
+        const root = createRoot(comnt_panel);
+        root.render(<CommentTracker url={link} />)
     }
-
-    return 0;
-
 }
