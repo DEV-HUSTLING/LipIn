@@ -10,7 +10,7 @@ from playwright.sync_api import sync_playwright
 
 load_dotenv()
 app = FastAPI()
-client = OpenAI(api_key=os.getenv("OPENAI_API"))
+client = OpenAI()
 
 class CommentsBody(BaseModel):
     post: str
