@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -13,11 +14,12 @@ app = FastAPI()
 client = OpenAI()
 
 class CommentsBody(BaseModel):
+    
     post: str
-    prompt: str | None = None #Optional field with a default value of None
-    tone: str | None = None #Optional field with a default value of None
-    persona: str | None = None #Optional field with a default value of None
-    language: str | None = None #Optional field with a default value of None
+    prompt: Optional[str] = None #Optional field with a default value of None
+    tone: Optional[str] = None #Optional field with a default value of None
+    persona: Optional[str] = None #Optional field with a default value of None
+    language: Optional[str] = None #Optional field with a default value of None
 class profileLink(BaseModel):
     profile_url: str
 class PostBody(BaseModel):
