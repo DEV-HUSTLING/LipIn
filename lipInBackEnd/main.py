@@ -7,17 +7,36 @@ from pydantic import BaseModel
 import requests
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
-
+import firebase_admin
+from firebase_admin import credentials, firestore, storage
 load_dotenv()
 app = FastAPI()
 client = OpenAI(api_key=os.getenv("OPENAI_API"))
 
+fireCred = credentials.Certificate(os.getenv("FIREBASE_API"))
+firebase_admin.initialize_app(fireCred)
+db = firestore.client()
 class CommentsBody(BaseModel):
     post: str
     prompt: str | None = None #Optional field with a default value of None
     tone: str | None = None #Optional field with a default value of None
     persona: str | None = None #Optional field with a default value of None
     language: str | None = None #Optional field with a default value of None
+
+class PersonalInfo(BaseModel):
+        url: str
+        email:str
+        name:str
+        userDescription:str
+        purpose:str
+        careerVision:str
+        SSIscore:str
+        profileFileAnalytics:list
+        profileFile:list
+        resume: list
+        currentExp:str
+        additionalInfo:str
+
 class profileLink(BaseModel):
     profile_url: str
 class PostBody(BaseModel):
@@ -45,6 +64,17 @@ app.add_middleware(
 @app.get("/")
 async def welcome():
     return {"message":"Welcome to the FASTAPI"}
+
+@app.post("/personalInfo")
+async def personal_info(body: PersonalInfo):
+    doc_ref = (
+        db.collection("personalInfo")
+          .document(body.url or 'sample')
+          .collection("items")
+    )
+    add_data = doc_ref.add(body.model_dump())
+    return {"id": add_data[1].id}
+
 
 @app.post("/AIcomments")
 def get_ai_comments(body: CommentsBody):

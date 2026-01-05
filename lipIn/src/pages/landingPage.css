@@ -60,13 +60,36 @@ font-family: "Lato", sans-serif;
     display:flex;
     flex-direction: column;
     align-items: center;
-    padding-left: 2rem;
-    padding-right: 2rem;
-    background-color: rgb(252, 231, 240);
-    height: 50vh;
+    padding: 2rem;
+    padding-bottom: 4rem;
+    background-color: rgb(247, 236, 241);
+    height: 100vh;
     overflow: scroll;
     scrollbar-width: none;
 }
+.Inputform{
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+}
+.Inputform label{
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+}
+.Inputform textarea::placeholder{
+padding: 0.2rem;
+outline: none;
+}
+.Inputform textarea{
+padding: 0.5rem;
+outline: none;
+}
+.UploadSection .MuiInput-underline:before,
+.MuiInput-underline:after {
+  display: none;
+}
+
 @media (max-width: 1280px) {
   .container {
     margin: 0 24px;

@@ -30,7 +30,7 @@ function Dashboard() {
                 </div>
                 <Button variant="contained" sx={{
                     backgroundColor:'#0B68A6',
-                    border:'2px solid #F4287B',
+                    border:'none',
                     borderRadius:'3rem',
                     color:'white',
                 }} onClick={()=>{
