@@ -63,7 +63,9 @@ async function handleGenerateComment(message) {
   const [post, prompt, tone] = message.text.split("\\\n");
   console.log('generateComment prompt:', prompt);
   
-  const response = await fetch('https://lipin.onrender.com/AIcomments', {
+  // const response = await fetch('https://lipin.onrender.com/AIcomments', {
+  const response = await fetch('http://3.137.157.253/AIcomments', {
+
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'

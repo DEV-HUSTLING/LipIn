@@ -9,7 +9,7 @@ export default function Home() {
   return (
     <Routes>
         <Route path='/' element={<Dashboard />} />
-      <Route path="/form" element={<InputForm />} />
+      <Route path="/form/:profileId" element={<InputForm />} />
     </Routes>
   )
 }

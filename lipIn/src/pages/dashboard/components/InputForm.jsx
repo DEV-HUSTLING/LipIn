@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import '../../landingPage.css'
 import { Button } from '@mui/material'
-import { useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { FormControl, InputLabel, FormHelperText, Input, TextareaAutosize } from '@mui/material';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import { collection, getDocs, query, orderBy, limit, getFirestore, where } from "firebase/firestore";
 
 function InputForm() {
-    const [url, setUrl] = useState('')
+    const { profileId } = useParams()
     const [inputForm, setInputForm] = useState({
-        url: url,
+        url: '',
         email: '',
         name: '',
         userDescription: '',
@@ -25,16 +25,17 @@ function InputForm() {
         additionalInfo: ''
     })
     useEffect(() => {
-        chrome.storage.local.get('profileURl', (result) => {
-            if (result.profileURl) {
-                const extractedUrl = result.profileURl.split("/in/")[1]?.split("/")[0];
-                setUrl(extractedUrl);
-            }
-        });
-    }, []);
-    const handleChange = (e) => {
+        console.log(profileId)
+    if (profileId) {
+        setInputForm(prev => ({
+            ...prev,
+            url: profileId
+        }));
+    }
+}, [profileId]);
 
-        const { name, type, value, files } = e.target;
+    const handleChange = (e) => {
+        const  { name, type, value, files } = e.target;
         setInputForm(prev => ({
             ...prev,
             [name]: type === 'file' ? [...prev[name], ...Array.from(files)] || null : value,

@@ -253,8 +253,32 @@ useEffect(() => {
 
   };
   const tonesList = [
-    { name: 'Formal', icon: <WorkOutlineIcon style={{ fontSize: '2rem', color: 'pink' }} />, prompt: 'Write a professional comment that acknowledges the key points made in the post. Use formal, polished language with a respectful and neutral tone. Structure your comment to recognize the main argument or achievement, then add a brief professional observation or insight. Avoid emojis and casual language. Keep it concise and business-appropriate.' },
-    { name: 'Appreciate', icon: <HandshakeIcon style={{ fontSize: '2rem', color: 'pink' }} />, prompt: 'Write a genuinely appreciative comment that highlights specific value from the post. Express sincere gratitude for the insight, effort, or perspective shared. Acknowledge what made the post valuable or impactful. Use warm, encouraging language that feels authentic—not generic praise. Focus purely on appreciation without adding suggestions or critique.' },
+    { name: 'Formal', 
+      icon: <WorkOutlineIcon style={{ fontSize: '2rem', color: 'pink' }} />,
+      prompt: `Goal: Establish professional credibility and demonstrate expertise
+              Rules:
+              Use professional language and industry terminology
+              Maintain respectful and courteous tone throughout
+              Avoid slang, emojis, and casual expressions
+              Structure comments with clear, complete sentences
+              Reference specific points from the post with precision
+              Must be factual and substantive, never superficial or generic
+              Keep length between 2-4 sentences (30-60 words)` 
+            },
+          { 
+      name: 'Appreciate', 
+      icon: <HandshakeIcon style={{ fontSize: '2rem', color: 'pink' }} />, 
+      prompt: `Goal: Express genuine gratitude and acknowledge the value provided
+                Rules:
+
+                Begin with sincere appreciation or acknowledgment
+                Highlight specific aspects that resonated with you
+                Share how the content impacted you personally
+                Express gratitude for their effort and contribution
+                Keep tone warm but authentic, avoid excessive flattery
+                Must be factual and substantive, never superficial or generic
+                Keep length between 2-4 sentences (30-60 words)`
+       },
     { 
   name: 'Add Value', 
   icon: <TipsAndUpdatesIcon style={{ fontSize: '2rem', color: 'pink' }} />, 
@@ -294,8 +318,35 @@ EXAMPLES OF BAD "ADD VALUE" COMMENTS (NEVER DO THIS):
 
 Write a comment that feels unmistakably personal — something only someone with this specific experience could write. No fluff, no filler, just real value.`
 },
-    { name: 'Curious', icon: <QuestionAnswerIcon style={{ fontSize: '2rem', color: 'pink' }} />, prompt: 'Write an engaged comment that shows genuine interest in learning more. Reference a specific point from the post that intrigued you, then ask a thoughtful, specific question to deepen your understanding or explore the topic further. Use a conversational, open-minded tone that invites dialogue. Your curiosity should feel authentic—like you genuinely want to know their perspective or experience on something specific they mentioned.' },
-    { name: 'Differ', icon: <SentimentNeutralIcon style={{ fontSize: '2rem', color: 'pink' }} />, prompt: 'Write a respectful comment that offers an alternative perspective or contrasting experience. Start by acknowledging the validity of their point, then share a different angle, counterexample, or "in my experience, I found..." statement. Frame it as adding to the discussion rather than contradicting. Use phrases like "Another perspective might be..." or "I\'ve seen different results when..." Keep the tone collaborative and curious, not argumentative. The goal is to enrich the conversation with diverse viewpoints.' },
+    { name: 'Curious', 
+      icon: <QuestionAnswerIcon style={{ fontSize: '2rem', color: 'pink' }} />, 
+      prompt: `Goal: Demonstrate genuine interest and invite deeper discussion
+              Rules:
+
+              Ask specific, thoughtful questions about the content
+              Show you engaged with the material through informed queries
+              Avoid questions that could be answered by reading the post
+              Express interest in learning more about particular aspects
+              Frame questions that encourage detailed responses
+              Must be factual and substantive, never superficial or generic
+              Keep length between 2-4 sentences (30-60 words)
+
+              ` },
+    { name: 'Differ', 
+      icon: <SentimentNeutralIcon style={{ fontSize: '2rem', color: 'pink' }} />, 
+    prompt: `
+    Goal: Respectfully present alternative viewpoints or share contrasting experiences
+    Rules:
+        
+    Acknowledge the validity of the original perspective first
+    Use phrases like "In my experience" or "From a different angle"
+    Present counterpoints with evidence or specific examples
+    Maintain respectful and constructive tone throughout
+    Avoid absolute statements or dismissive language
+    Invite dialogue rather than declaring who is right
+    Must be factual and substantive, never superficial or generic
+    Keep length between 2-4 sentences (30-60 words)
+    ` },
   ]
 
 

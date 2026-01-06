@@ -1,4 +1,4 @@
-import React from 'react'
+import React,{useEffect, useState} from 'react'
 import { Button } from '@mui/material'
 import '../landingPage.css'
 import { Routes, Route } from "react-router-dom"
@@ -7,7 +7,15 @@ import InputForm from './components/InputForm';
 
 function Dashboard() {
       const navigate = useNavigate();
-
+      const[profileId, setProfileId] = useState('') 
+    useEffect(() => {
+        chrome.storage.local.get('profileURl', (result) => {
+            if (result.profileURl) {
+                const extractedUrl = result.profileURl.split("/in/")[1]?.split("/")[0];
+                setProfileId(extractedUrl)
+            }
+        });
+    }, []);
   return (
     <div className='Container'>
 
@@ -34,7 +42,7 @@ function Dashboard() {
                     borderRadius:'3rem',
                     color:'white',
                 }} onClick={()=>{
-                    navigate("/form")
+                    navigate(`/form/${profileId}`)
                 }}>Let's Begin</Button>
             </div>
         </main>
