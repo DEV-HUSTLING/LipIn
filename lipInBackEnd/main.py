@@ -221,9 +221,8 @@ Write my comment using everything above. No generic phrases. No abstract concept
         )
         comment = response.choices[0].message.content.strip()
         print("prompt:", prompt)
-        print("tone:", tone)
-        print("persona:", persona)
-        print("language:", language)
+        print("comment:", comment)
+
         return {"comment": comment}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

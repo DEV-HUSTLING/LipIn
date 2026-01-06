@@ -232,6 +232,7 @@ useEffect(() => {
 
   }, [aiCmnt, cmntArea]);
   const handleGenerateComment = () => {
+    console.log('clicked')
     setLoader(true);
     const postContent = getPostDescription(postEl);
 
