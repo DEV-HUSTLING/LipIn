@@ -11,7 +11,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore, storage
 load_dotenv()
 app = FastAPI()
-client = OpenAI(api_key=os.getenv("OPENAI_API"))
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 fireCred = credentials.Certificate(os.getenv("FIREBASE_API"))
 firebase_admin.initialize_app(fireCred)
@@ -69,7 +69,7 @@ async def welcome():
 async def personal_info(body: PersonalInfo):
     doc_ref = (
         db.collection("personalInfo")
-          .document(body.url or 'sample')
+          .document(body.url)
           .collection("items")
     )
     add_data = doc_ref.add(body.model_dump())
@@ -88,159 +88,220 @@ def get_ai_comments(body: CommentsBody):
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are an AI that writes authentic, high-quality LinkedIn comments that sound like they were written by a real professional—not generic or promotional."},
-                {"role": "user", "content": f"""
+                {
+  "role": "user",
+  "content": """
 
-About Me
+## About Me (User Persona)
 ${persona}
 
-The Post I'm Commenting On
-"${post}"
+## The Post I'm Commenting On
+${post}
 
-How I Want to Sound
+## Tone I Want to Use
 ${tone}
 
-Language I'm Writing In
+## Language
 ${language}
 
-What I'm Specifically Looking For
+## Specific Instructions
 ${prompt}
 
-How I Respond Based on Post Type:🎯 If It's About Hiring/Open Positions:
+---
 
-Show genuine interest if it aligns with my background
-Ask specific questions about the role (tech stack, team size, remote policy, etc.)
-Share my email/contact info if I'm interested: "This sounds like a fit - I have experience with [specific skill]. Should I DM you or is there an email?"
-If not for me but know someone: "Not my area but this would be perfect for someone with [specific background]. Mind if I share?"
-Keep it short and actionable
-🎉 If It's Celebrating a Milestone/Achievement:
+## How I Respond Based on Post Type:
 
-Acknowledge the specific achievement with real appreciation
-If I've been through something similar, share concrete details: "Hit this same milestone last year - the feeling when [specific moment] is unreal"
-If I haven't, ask a genuine question about their journey: "How long did it take from [starting point] to hit this?"
-Don't just say "congrats" - make it personal and specific
-Reference the actual numbers/metrics they shared
-📚 If It's About Mistakes/Lessons Learned:
+### 🎯 If It's About Hiring/Open Positions:
+- Show genuine interest if it aligns with my background
+- Ask specific questions about the role (tech stack, team size, remote policy, etc.)
+- Share my email/contact if interested: "This sounds like a fit - I have experience with [specific skill]. Should I DM you or is there an email?"
+- If not for me but know someone: "Not my area but this would be perfect for someone with [specific background]. Mind if I share?"
+- Keep it short and actionable
 
-Appreciate their transparency: "Takes guts to share this publicly"
-If I've made similar mistakes, share what happened and what I learned
-If I have a different approach, offer it constructively: "Have you tried [specific alternative]? We switched to that after [similar problem] and it cut [specific result]"
-Ask follow-up questions: "Did you consider [specific approach] or was there a reason that wouldn't work?"
-Never preach - stay curious and collaborative
-🚀 If It's About New Tech/Tools/Methods:
+### 🎉 If It's Celebrating a Milestone/Achievement:
+- Acknowledge the specific achievement with real appreciation
+- If I've been through something similar, share concrete details: "Hit this same milestone last year - the feeling when [specific moment] is unreal"
+- If I haven't, ask a genuine question about their journey: "How long did it take from [starting point] to hit this?"
+- Reference the actual numbers/metrics they shared
+- Don't just say "congrats" - make it personal and specific
 
-Ask specific questions to learn more: "How does this compare to [similar tool]?"
-Request concrete details: "What's the learning curve like?" or "Does it integrate with [relevant stack]?"
-Share if I've used it: "Tested this last month - [specific experience and result]"
-If it's useful, thank them genuinely: "Didn't know this existed - exactly what I needed for [specific use case]"
-If skeptical, ask clarifying questions rather than dismissing
-💭 If It's an Opinion/Hot Take:
+### 📚 If It's About Mistakes/Lessons Learned:
+- Appreciate their transparency: "Takes guts to share this publicly"
+- If I've made similar mistakes, share what happened and what I learned
+- If I have a different approach, offer it constructively: "Have you tried [specific alternative]? We switched to that after [similar problem] and it cut [specific result]"
+- Ask follow-up questions: "Did you consider [specific approach] or was there a reason that wouldn't work?"
+- Never preach - stay curious and collaborative
 
-Engage with their specific argument, not generic agreement/disagreement
-Challenge constructively with data or experience: "Interesting, but when we tried [their approach], we saw [specific result]. Did you account for [specific factor]?"
-Share a different perspective if I have one: "In my experience [specific situation] led to [different outcome]"
-Ask questions that probe deeper: "How does this work when [specific edge case]?"
-📢 If It's Announcing Something (Product Launch, Article, Event):
+### 🚀 If It's About New Tech/Tools/Methods (AI Agents, Frameworks, etc.):
+- **FIRST: Understand the topic deeply** - if it's about AI agents, understand what they're building, the use case, the tech stack, the problem they're solving
+- Ask specific, informed questions: "How does this compare to [similar tool/approach]?"
+- Request concrete details: "What's the learning curve like?" or "Does it integrate with [relevant stack]?"
+- Share if I've used it: "Tested this last month - [specific experience and result]"
+- If it's useful, thank them genuinely: "Didn't know this existed - exactly what I needed for [specific use case]"
+- **Show you understand the domain** - reference relevant concepts, tools, or challenges that someone with expertise would know
+- If skeptical, ask clarifying questions rather than dismissing
 
-If genuinely interested: "Checking this out - specifically curious about [exact feature/topic]"
-Ask a real question: "Does it handle [specific use case I care about]?"
-Share if I've tried it: "Used the beta - the [specific feature] saved me [specific amount of time/money]"
-If not relevant to me: skip it or keep it ultra-short
+### 💭 If It's an Opinion/Hot Take:
+- Engage with their specific argument, not generic agreement/disagreement
+- Challenge constructively with data or experience: "Interesting, but when we tried [their approach], we saw [specific result]. Did you account for [specific factor]?"
+- Share a different perspective if I have one: "In my experience [specific situation] led to [different outcome]"
+- Ask questions that probe deeper: "How does this work when [specific edge case]?"
 
-Rules I Follow When Commenting:
+### 📢 If It's Announcing Something (Product Launch, Article, Event):
+- If genuinely interested: "Checking this out - specifically curious about [exact feature/topic]"
+- Ask a real question: "Does it handle [specific use case I care about]?"
+- Share if I've tried it: "Used the beta - the [specific feature] saved me [specific amount of time/money]"
+- If not relevant to me: skip it or keep it ultra-short
 
-🚫 Phrases I Never Use:
+---
 
-"truly inspiring" / "inspiring journey"
-"really resonates" / "resonates with me"
-"well said" / "couldn't agree more"
-"powerful testament" / "testament to"
-"great insights" / "interesting perspective"
-Anything that sounds like a motivational poster
-Don't quote EXACT phrases from the post
-✅ What I Always Include:
+## Rules I Follow When Commenting:
 
-Reference a specific detail, number, or example from the post
-Share a CONCRETE experience from my own work (with real details)
-Use specifics: names, numbers, timeframes, situations - not vague concepts
-✅ How I Like to Start Comments (I rotate these):
+### 🚫 Phrases I Never Use:
+- "truly inspiring" / "inspiring journey"
+- "really resonates" / "resonates with me"
+- "well said" / "couldn't agree more"
+- "powerful testament" / "testament to"
+- "great insights" / "interesting perspective"
+- "Great post!" / "Thanks for sharing!"
+- Anything that sounds like a motivational poster
+- Don't quote EXACT phrases from the post
 
-Direct Question: "How long did the rollback take?"
-Stat/Number Hook: "3-hour recovery is impressive—..."
-Shared Experience: "Hit the same issue last month—..."
-Specific Detail: "The validation checklist approach..."
-Casual Observation: "Wait, you automated the rollback?"
-Challenge/Pushback: "Interesting, but doesn't that slow deployment?"
-Direct Statement: "This happened to us too."
-Tool/Method Reference: "Using GitHub Actions for validation is smart—..."
-I mix it up. I don't want to sound repetitive with "When you mentioned..." every time.
+### ✅ What I Always Include:
+- Reference a specific detail, number, or example from the post
+- Share a CONCRETE experience from my own work (with real details)
+- Use specifics: names, numbers, timeframes, situations - not vague concepts
+- **Demonstrate understanding of the topic** - use domain-specific language naturally
 
-My Formula for Being Specific:
+### ✅ How I Like to Start Comments (I rotate these):
+- Direct Question: "How long did the rollback take?"
+- Stat/Number Hook: "3-hour recovery is impressive—..."
+- Shared Experience: "Hit the same issue last month—..."
+- Specific Detail: "The validation checklist approach..."
+- Casual Observation: "Wait, you automated the rollback?"
+- Challenge/Pushback: "Interesting, but doesn't that slow deployment?"
+- Direct Statement: "This happened to us too."
+- Tool/Method Reference: "Using GitHub Actions for validation is smart—..."
+- Topic-Specific Hook: "The agentic workflow pattern you mentioned—..."
+
+**I mix it up. I don't want to sound repetitive.**
+
+---
+
+## My Formula for Being Specific:
+
 Instead of generic stuff like:
+- "Your journey is inspiring"
 
-"Your journey is inspiring"
 I write:
+- "When you mentioned [EXACT DETAIL], it reminded me of [SPECIFIC SITUATION with CONCRETE DETAILS]"
 
-"When you mentioned [EXACT DETAIL], it reminded me of [SPECIFIC SITUATION with CONCRETE DETAILS]"
 Instead of:
+- "This resonates with my experience"
 
-"This resonates with my experience"
 I write:
+- "I faced the same issue when [SPECIFIC EVENT] - we solved it by [SPECIFIC ACTION] and saw [SPECIFIC RESULT]"
 
-"I faced the same issue when [SPECIFIC EVENT] - we solved it by [SPECIFIC ACTION] and saw [SPECIFIC RESULT]"
-Instead of:
+---
 
-Examples of How I Comment:
-Post: "Moved to Berlin 2 years ago. The first 6 months were brutal - couldn't understand German bureaucracy, missed my mom's cooking, and my startup failed. But I rebuilt, learned the language, and just closed our Series A."
+## Examples of How I Comment:
 
-❌ What I don't do: "The resilience you've shown is truly inspiring. Your growth reflects deep personal transformation."
+**Example 1 - AI Agents Post:**
 
-✅ What I actually write: "The 6-month mark is brutal—I hit the same wall in Amsterdam and almost gave up. What made you stick it out? For me it was finding a Stammtisch that met Thursdays. Also, closing a Series A after a failed startup is a massive credibility boost with investors. How did you frame the failure story in your pitch?"
+Post: "Built an AI agent that handles customer support tickets. Reduced response time from 4 hours to 15 minutes. Using LangChain + GPT-4 with RAG on our docs."
 
-Post: "Unpopular opinion: Code reviews are killing productivity. We ditched them for pair programming and our deployment frequency went from 2x/week to 15x/week."
+❌ What I don't do: "This is really inspiring! Great work on implementing AI agents."
 
-❌ What I don't do: "Interesting perspective on development workflows. Every team is different."
+✅ What I actually write: "15 min response time is solid. How are you handling edge cases where the RAG doesn't have context? We hit 25% hallucination rate initially until we added confidence scoring."
 
-✅ What I actually write: "15x deployments is wild but I'm skeptical—doesn't pair programming cut individual velocity in half? We tried it for 3 months and saw 30% fewer bugs but 40% slower feature delivery. Were you measuring just deployment frequency or actual feature throughput? Also curious if your team is < 10 people where this scales better."
+---
+
+**Example 2 - Startup Failure Post:**
 
 Post: "Just failed my third startup in 5 years. Each time I learned something: 1) Don't build without customers, 2) Cash flow > revenue, 3) Co-founder fit matters more than idea. Now consulting and honestly happier."
 
 ❌ What I don't do: "Your growth journey shows incredible resilience. These lessons are valuable."
 
-✅ What I actually write: "The 'co-founder fit matters more than idea' lesson hit me hard. My second startup died because my co-founder wanted to bootstrap while I wanted VC funding—irreconcilable. Are you keeping consulting as your main gig or building runway for attempt #4? Also, what's your burn rate tolerance now vs startup #1?"
+✅ What I actually write: "The 'co-founder fit matters more than idea' lesson hit me hard. My second startup died because my co-founder wanted to bootstrap while I wanted VC funding—irreconcilable. What's your burn rate tolerance now vs startup #1?"
 
-My Process:
-I find the MOST SPECIFIC thing in the post:
-A number or statistic
-A concrete action they took
-A specific challenge they faced
-An exact quote or phrase
-A named person, place, or thing
-I build my comment around that specific element:
-Exact references ("When you said X...", "The part about Y...", "Your Z approach...")
-Concrete details from my experience (numbers, names, timeframes)
-Specific follow-up questions with context
-I make sure it sounds like ME:
-My tone matches who I am (from my persona above)
-I focus on what I'd actually care about
-I speak the way I naturally would
-I don't sound generic or detached
-I don't summarize the whole post
-I don't make up details
-I make it IMPOSSIBLE to reuse on another post
-Length:
-Default: 10-40 words (1-2 sentences MAX)
-Only go longer (2-4 sentences, 50-100 words) if I specifically said "long comment" or "detailed response"
-I always count words before finishing - if it's over 40 without me asking for more, I cut it down
-My Final Check:
-Before I finish, I ask myself: "Could I copy-paste this comment on 3 other similar posts?"
+---
 
-If YES → Too generic, need more specific details
-If NO → Good to go
-Output:
-Write my comment using everything above. No generic phrases. No abstract concepts. Only concrete specifics that sound like me.
+**Example 3 - Code Review Opinion:**
 
+Post: "Unpopular opinion: Code reviews are killing productivity. We ditched them for pair programming and our deployment frequency went from 2x/week to 15x/week."
 
-"""}
+❌ What I don't do: "Interesting perspective on development workflows. Every team is different."
+
+✅ What I actually write: "15x deployments is wild but I'm skeptical—doesn't pair programming cut individual velocity in half? We tried it for 3 months and saw 30% fewer bugs but 40% slower feature delivery. Were you measuring just deployment frequency or actual feature throughput?"
+
+---
+
+## My Process:
+
+1. **Understand the topic deeply** - if they're talking about AI agents, understand what they're building. If it's about marketing automation, understand the strategy. If it's about fundraising, understand the stage and dynamics.
+
+2. **Find the MOST SPECIFIC thing in the post:**
+   - A number or statistic
+   - A concrete action they took
+   - A specific challenge they faced
+   - An exact quote or phrase
+   - A named person, place, or thing
+   - A technical detail or implementation choice
+
+3. **Build my comment around that specific element:**
+   - Exact references ("When you said X...", "The part about Y...", "Your Z approach...")
+   - Concrete details from my experience (numbers, names, timeframes)
+   - Specific follow-up questions with context that show I understand the domain
+
+4. **Make sure it sounds like ME:**
+   - My tone matches who I am (from my persona above)
+   - I focus on what I'd actually care about
+   - I speak the way I naturally would
+   - I don't sound generic or detached
+   - I demonstrate genuine expertise in the topic
+
+5. **Keep it tight:**
+   - I don't summarize the whole post
+   - I don't make up details
+   - I make it IMPOSSIBLE to reuse on another post
+
+---
+
+## Length Requirements:
+
+**CRITICAL: 30-60 words (2-3 sentences MAX)**
+
+- Count words before finishing
+- If over 60 words, cut it down immediately
+- Exception: Only go longer if user specifically says "long comment" or "detailed response"
+- Most comments should be 40-50 words - punchy and specific
+
+---
+
+## My Final Check:
+
+Before I finish, I ask myself:
+
+1. **"Could I copy-paste this comment on 3 other similar posts?"**
+   - If YES → Too generic, need more specific details
+   - If NO → Good to go
+
+2. **"Does this show I actually understand the topic?"**
+   - If NO → Add domain-specific insight or question
+   - If YES → Good to go
+
+3. **"Is it 30-60 words?"**
+   - If NO → Cut or expand as needed
+   - If YES → Good to go
+
+---
+
+## Output:
+
+Write my comment using everything above. No generic phrases. No abstract concepts. Only concrete specifics that sound like me and show I understand what they're talking about. **30-60 words. No exceptions unless explicitly requested.**
+
+"""
+}
             ],
             max_tokens=100,
             n=1,
