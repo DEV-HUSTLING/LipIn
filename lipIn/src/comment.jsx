@@ -8,7 +8,7 @@ import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
 import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
 import SentimentNeutralIcon from '@mui/icons-material/SentimentNeutral';
 import SendIcon from '@mui/icons-material/Send';
-import {app}from './firebase.jsx';
+import {app}from './auth/firebase.jsx';
 import { getFirestore, collection,
   getDocs,
   addDoc,

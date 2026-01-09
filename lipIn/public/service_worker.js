@@ -64,7 +64,7 @@ async function handleGenerateComment(message) {
   console.log('generateComment prompt:', prompt);
   
   // const response = await fetch('https://lipin.onrender.com/AIcomments', {
-  const response = await fetch('http://3.137.157.253/AIcomments', {
+  const response = await fetch('http://127.0.0.1:8000/AIcomments', {
 
     method: 'POST',
     headers: {

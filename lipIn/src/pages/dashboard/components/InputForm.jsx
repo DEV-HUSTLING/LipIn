@@ -41,14 +41,59 @@ function InputForm() {
             [name]: type === 'file' ? [...prev[name], ...Array.from(files)] || null : value,
         }))
     }
-    const submitForm = () => {
-        axios.post('http://127.0.0.1:8000/personalInfo',inputForm).then(function (response) {
-            console.log(response.data); // Access the data returned by the server
-        })
-            .catch(function (error) {
-                console.error(error); // Handle any errors
-            })
+const submitForm = () => {
+    const formData = new FormData();
+    
+    // Add text fields
+    formData.append('url', inputForm.url || '');
+    formData.append('email', inputForm.email || '');
+    formData.append('name', inputForm.name || '');
+    formData.append('userDescription', inputForm.userDescription || '');
+    formData.append('purpose', inputForm.purpose || '');
+    formData.append('careerVision', inputForm.careerVision || '');
+    formData.append('SSIscore', inputForm.SSIscore || '');
+    formData.append('currentExp', inputForm.currentExp || '');
+    formData.append('additionalInfo', inputForm.additionalInfo || '');
+    
+    // Add profileFileAnalytics files
+    if (Array.isArray(inputForm.profileFileAnalytics)) {
+        inputForm.profileFileAnalytics.forEach((file) => {
+            if (file instanceof File) {
+                formData.append('profileFileAnalytics', file);
+            }
+        });
     }
+    
+    // Add profileFile files
+    if (Array.isArray(inputForm.profileFile)) {
+        inputForm.profileFile.forEach((file) => {
+            if (file instanceof File) {
+                formData.append('profileFile', file);
+            }
+        });
+    }
+    
+    // Add resume files
+    if (Array.isArray(inputForm.resume)) {
+        inputForm.resume.forEach((file) => {
+            if (file instanceof File) {
+                formData.append('resume', file);
+            }
+        });
+    }
+    
+    axios.post('http://127.0.0.1:8000/personalInfo', formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        }
+    })
+    .then(function (response) {
+        console.log('Success:', response.data);
+    })
+    .catch(function (error) {
+        console.error('Error:', error.response?.data || error);
+    });
+};
     return (
         <div className='Container'>
             <header>

@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBaNAHhmMK3I7x1cXXSWoOtQxqfiGsJTNQ",
@@ -10,5 +11,13 @@ const firebaseConfig = {
   measurementId: "G-CLZV2VJDMR"
 };
 export const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app)
 
-console.log("🔥 Firebase initialized", app);
+// Setup google provider
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt:'select_account'
+})
+
+// Keep user logged in
+setPersistence(auth, browserLocalPersistence)

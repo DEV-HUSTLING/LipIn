@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { app } from './firebase.jsx';
+import { app } from './auth/firebase.jsx';
 import dayjs from 'dayjs';
 import {browserTheme} from './helpers/bowserTheme.jsx';
 import { collection, getDocs, query, orderBy, limit, getFirestore, where } from "firebase/firestore";

@@ -56,6 +56,14 @@ font-family: "Lato", sans-serif;
     width: 300px;
     padding: 1rem;
 }
+.dashboardMain h4{
+    border: solid 1px;
+    width: fit-content;
+    text-align: center;
+    padding: 1rem;
+    border-radius: 30px;
+    font-style: italic;
+}
 .FormMain{
     display:flex;
     flex-direction: column;
