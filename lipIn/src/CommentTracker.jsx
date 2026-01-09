@@ -73,8 +73,9 @@ function CommentTracker({ url }) {
         const weekDate = week.getTime();
 
         // monthly time
-        const month = new Date(todayDate - 30 * 24 * 60 * 60 * 1000)
-        month.setHours(0,0,0,0);
+        const baseTime = today.getTime(); 
+        const month = new Date(baseTime - 30 * 24 * 60 * 60 * 1000);
+        month.setHours(0, 0, 0, 0);
         const monthDate = month.getTime();
         try {
 
@@ -165,7 +166,7 @@ function CommentTracker({ url }) {
                         Last 30 Days
                     </p>
                     <div className='commentValue' style={{color:'rgb(228, 90, 146)'}}>
-                        <span>{weekCounts}</span>
+                        <span>{monthlyCounts}</span>
                     </div>
                 </div>
 
