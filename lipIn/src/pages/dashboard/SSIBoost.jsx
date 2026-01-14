@@ -8,7 +8,7 @@ import TableRow from '@mui/material/TableRow';
 import Paper from '@mui/material/Paper';
 import axios from 'axios';
 
-const MainProfile = () => {
+const SSIBoost = () => {
     const [profileId, setProfileId] = useState('')
     const [ssidata, setSsidata] = useState([])
     function createData(name, value) {
@@ -27,7 +27,8 @@ const MainProfile = () => {
         chrome.storage.local.get('profileURl', (result) => {
             if (result.profileURl) {
                 const extractedUrl = result.profileURl;
-                axios.get(`http://127.0.0.1:8000/personalInfo`, {
+                setProfileId( extractedUrl.split("/in/")[1]?.split("/")[0])
+                axios.get(`http://127.0.0.1:8000/profileAnalysis`, {
                     params: {
                         profile_url: extractedUrl.split("/in/")[1]?.split("/")[0]
                     }
@@ -42,8 +43,8 @@ const MainProfile = () => {
     }, [])
 
     return (
-        <div className='Container'>
-            <div className="ssi_section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <div>
+            <div className="ssi_section" style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
                 {ssidata.data?.ssi_data?.SSI_Score ? <div style={{
                     width: '23%',
                     borderRadius: '20px',
@@ -81,21 +82,22 @@ const MainProfile = () => {
                     </TableContainer>
                 </div>
             </div>
-            <div className='ssi_recommendation'>
-                <div style={{display:'flex', alignItems:'center', justifyContent:'space-between',width:'100%', gap:'10px'}}>
+            <div style={{display:'flex',justifyContent:'space-around',width:'100%'}}>
+                <div className='ssi_recommendation' style={{width:'65%', height:'58vh'}}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '10px' }}>
                     <h4>SSI Suggestions</h4>
-                    <hr style={{width:'90%'}} />
+                    <hr style={{ width: '90%' }} />
                 </div>
-                <div style={{height:'50vh', width:'100%'}}>
-                    <div>
+                <div style={{ height: '100%', width: '100%',overflow:'scroll',scrollbarWidth:'none' }}>
+                    <div style={{paddingBottom:'2rem'}}>
                         {
-                            ssidata.data?.recommendations?.map((item, index) => (
+                            ssidata.data?.ssi_recommendations?.map((item, index) => (
                                 <div key={index}>
                                     <h4>{item.component}</h4>
-                                    <div style={{display:'grid', gridTemplateColumns:'repeat( auto-fit, minmax(250px, 1fr) )',gridAutoRows:'auto', gap:'1rem'}}>
-                                    {item.recommendations?.map((it)=><div style={{backgroundColor:'#f66ea521', padding:'1rem', borderRadius:'1rem', overflowY:'auto'}}>
-                                    <p>{it}</p>
-                                    </div>)}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat( auto-fit, minmax(250px, 1fr) )', gridAutoRows: 'auto', gap: '1rem' }}>
+                                        {item.recommendations?.map((it) => <div style={{ backgroundColor: '#f66ea521', padding: '1rem', borderRadius: '1rem', overflowY: 'auto' }}>
+                                            <p>{it}</p>
+                                        </div>)}
                                     </div>
                                 </div>
                             ))
@@ -103,9 +105,26 @@ const MainProfile = () => {
                     </div>
 
                 </div>
-            </div>                    
+                </div>
+                <div className='niche_recommendation' style={{width:'30%'}}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                    <h4>Niche Suggestions</h4>
+                    <hr style={{ width: '90%' }} />
+                </div>
+                    <div  style={{ width: '100%', display: 'flex', flexDirection:'column', gap: '1rem', height:'58vh', overflow:'scroll',scrollbarWidth:'none' }}>
+                        {
+                            ssidata.data?.niche_recommendations?.recommendedNiches?.map((item, index) => (
+                                    <button key={index} style={{ backgroundColor: '#ffffffff', padding: '1rem', borderRadius: '1rem', border:'none', textAlign:'left',boxShadow: '0 4px 8px 0 rgba(rgba(246, 110, 165, 0.2), 0 6px 20px 0 rgba(rgba(246, 110, 165, 0.19)' }}>
+                                        <h4>{item.niche}</h4>
+                                        <p>{item.oneLinePitch}</p>
+                                    </button>
+                            ))
+                        }
+                    </div>
+                </div> 
+            </div>                        
         </div>
     )
 }
 
-export default MainProfile
+export default SSIBoost

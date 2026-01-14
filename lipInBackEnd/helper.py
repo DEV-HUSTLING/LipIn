@@ -1,10 +1,13 @@
 class File_to_Base64:
-    async def file_to_base64(file):
+    async def file_to_base64(self, file):
         from fastapi import HTTPException
         import base64
         content = await file.read()
         if len(content) > 800 * 1024:
             raise HTTPException(400, f"File too large: {file.filename}")
+        
+        # Reset file position for potential reuse
+        await file.seek(0)
     
         return {
         "base64": base64.b64encode(content).decode('utf-8'),
@@ -15,6 +18,7 @@ class File_to_Base64:
     def increment(self, amount=1):
         self.count += amount
         print(f"Count is now: {self.count}")
+
 class Clean_JSON:
     def __init__(self, raw_json):
         self.raw_json = raw_json

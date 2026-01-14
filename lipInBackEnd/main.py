@@ -12,7 +12,7 @@ from firebase_admin import credentials, firestore, auth
 from typing import List, Optional
 import json
 import logging
-from prompts import Comments, SSIRecommendations, SSIImageProcessing
+from prompts import Comments, SSIRecommendations, SSIImageProcessing, NicheRecommendation
 from helper import Image_Processor,Clean_JSON, File_to_Base64
 load_dotenv()
 app = FastAPI()
@@ -63,7 +63,8 @@ app.add_middleware(
 async def welcome():
     return {"message":"Welcome to the FASTAPI"}
 
-@app.get("/personalInfo") #SSI Score Extraction throiugh Image
+
+@app.get("/profileAnalysis") #SSI Score Extraction throiugh Image
 async def get_personal_info(profile_url: str = Query(...)):
     documents = []
     
@@ -82,9 +83,25 @@ async def get_personal_info(profile_url: str = Query(...)):
         for d in doc_ref:
             documents.append(d.to_dict())
         for doc in documents:
-            profile_files = doc.get("profileFileAnalytics")
-            if profile_files:
-                for img in profile_files:
+            headline = doc.get("headline")
+            currentExp = doc.get("currentExp")
+            pastExp = doc.get("pastExperience")
+            about = doc.get("userDescription")
+            topic_files = doc.get("topicsFiles")
+            topics=[]
+            if topic_files:
+                for topic in topic_files:
+                    topics.append(topic)
+            skills_files = doc.get("skillsFiles")
+            skills = []
+            if skills_files:
+                for skill in skills_files:
+                    skills.append(skill)
+            career = doc.get("careerVision")
+
+            ssi_files = doc.get("ssiScoreFiles")
+            if ssi_files:
+                for img in ssi_files:
                     image_type = "jpeg"
                     data_uri = f"data:image/{image_type};base64,{img["base64"]}"
                     ssi_image_extraction = SSIImageProcessing(data_uri)
@@ -101,7 +118,18 @@ async def get_personal_info(profile_url: str = Query(...)):
                 # Clean responses using helper function
                 ssi_cleaner = Clean_JSON(ssi_img_response.choices[0].message.content)
                 cleaned_response = ssi_cleaner.clean_json_response()
-                ssi_analysis_prompt = SSIRecommendations(cleaned_response)
+
+                # Niche REcommendations
+                niche_analysis_prompt = NicheRecommendation(career,headline,about,currentExp,skills,topics, pastExp)
+                niche_analysis = client.chat.completions.create(
+                    model = "gpt-4o-mini",
+                    messages = niche_analysis_prompt.generate_niche_prompt(),
+                    max_tokens = 800
+                )
+                niche_recomendation_cleaner = Clean_JSON(niche_analysis.choices[0].message.content)
+                cleaned_niche_analysis = niche_recomendation_cleaner.clean_json_response() 
+                # SSI Improvement Recommendations
+                ssi_analysis_prompt = SSIRecommendations(cleaned_response) #Generate's SSI Improvement Recommendations
                 ssi_analysis = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
@@ -115,8 +143,8 @@ async def get_personal_info(profile_url: str = Query(...)):
                      ],
                     max_tokens=800  # Increased for detailed recommendations
                     )
-                analysis_cleaner = Clean_JSON(ssi_analysis.choices[0].message.content)
-                cleaned_analysis = analysis_cleaner.clean_json_response()                
+                ssi_analysis_cleaner = Clean_JSON(ssi_analysis.choices[0].message.content)
+                cleaned_ssi_analysis = ssi_analysis_cleaner.clean_json_response()                
                 try:
                     # Parse SSI data
                     parsed_data = json.loads(cleaned_response)
@@ -130,13 +158,25 @@ async def get_personal_info(profile_url: str = Query(...)):
                         "error": str(e),
                         "raw_ssi_response": cleaned_response
                     }
-                
+                try:
+                    # Parse SSI data
+                    parsed_nicheRecom_data = json.loads(cleaned_niche_analysis)
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing SSI data: {e}")
+                    print(f"Raw SSI response: {cleaned_niche_analysis}")
+                    # Return error with raw response for debugging
+                    return {
+                        "success": False,
+                        "message": "Failed to parse SSI data",
+                        "error": str(e),
+                        "raw_ssi_response": cleaned_niche_analysis
+                    }
                 try:
                     # Parse recommendations data
-                    recommendations_data = json.loads(cleaned_analysis)
+                    recommendations_data = json.loads(cleaned_ssi_analysis)
                 except json.JSONDecodeError as e:
                     print(f"Error parsing recommendations: {e}")
-                    print(f"Raw recommendations response: {cleaned_analysis}")
+                    print(f"Raw recommendations response: {cleaned_ssi_analysis}")
                     # Return SSI data without recommendations
                     return {
                         "success": True,
@@ -145,14 +185,16 @@ async def get_personal_info(profile_url: str = Query(...)):
                             "ssi_data": parsed_data,
                             "recommendations": [],
                             "recommendations_error": str(e),
-                            "raw_recommendations_response": cleaned_analysis
+                            "raw_recommendations_response": cleaned_ssi_analysis
                         }
                     }
                 
                 # Combine both results
                 combined_result = {
                     "ssi_data": parsed_data,
-                    "recommendations": recommendations_data
+                    "ssi_recommendations": recommendations_data,
+                    "niche_recommendations": parsed_nicheRecom_data
+
                 }
 
         return {"success": True, "message": "Images processed successfully", "data": combined_result}
@@ -161,29 +203,34 @@ async def get_personal_info(profile_url: str = Query(...)):
         print("ERROR:", e)
         raise HTTPException(500, f"Error processing personal info: {str(e)}")
 
-@app.post("/personalInfo")
+@app.post("/personalInfo") #Store User Personal Info
 async def create_personal_info(
-                    url: str = Form(...),
-                    email: str = Form(...),
-                    name: str = Form(...),
-                    userDescription: str = Form(...),
-                    purpose: str = Form(...),
-                    careerVision: str = Form(...),
-                    SSIscore: str = Form(...),
-                    currentExp: str = Form(...),
-                    additionalInfo: str = Form(...),
-                    profileFileAnalytics: Optional[List[UploadFile]] = File(None),
-                    profileFile: Optional[List[UploadFile]] = File(None),
-                    resume: Optional[List[UploadFile]] = File(None)
+                            url: str = Form(...),
+        email: str = Form(...),
+        name: str = Form(...),
+        userDescription: str = Form(...),
+        purpose: str = Form(...),
+        careerVision: str = Form(...),
+        headline: str = Form(...),
+        ssiScore:  Optional[List[UploadFile]] = File(None),
+        profileFile:  Optional[List[UploadFile]] = File(None),
+        resume:  Optional[List[UploadFile]] = File(None),
+        currentExp: str = Form(...),
+        topics: List[str] = Form([]),
+        skills: List[str] = Form([]),
+        pastExperience: str = Form(...),
                 ):
     try:
-        # Process profileFileAnalytics files
-        profileFileAnalytics_list = []
-        file_cvt= File_to_Base64()
-        if profileFileAnalytics is not None:
-            for file in profileFileAnalytics:
+        file_cvt = File_to_Base64()
+        # Process ssiScore files
+        ssiScore_list = []
+        if ssiScore is not None:
+            for file in ssiScore:
                 if hasattr(file, 'filename') and file.filename:
-                    profileFileAnalytics_list.append(await file_cvt.file_to_base64(file))
+                    # Fix the method call - pass the file as argument
+                    print(f"Processing file: {file}")
+                    converted_file = await file_cvt.file_to_base64(file)
+                    ssiScore_list.append(converted_file)
         
         # Process profile files
         profileFile_list = []
@@ -201,19 +248,19 @@ async def create_personal_info(
         
         # Create data
         data = {
-            "url": url,
             "email": email,
             "name": name,
             "userDescription": userDescription,
             "purpose": purpose,
             "careerVision": careerVision,
-            "SSIscore": SSIscore,
-            "profileFileAnalytics": profileFileAnalytics_list,
-            "profileFile": profileFile_list,
-            "resume": resume_list,
+            "headline": headline,
+            "ssiScoreFiles": ssiScore_list,
+            "profileFileAnalytics": profileFile_list,
+            "resumeFiles": resume_list,
             "currentExp": currentExp,
-            "additionalInfo": additionalInfo,
-            "created_at": firestore.SERVER_TIMESTAMP
+            "topicsFiles": topics,
+            "skillsFiles": skills,
+            "pastExperience": pastExperience
         }
         
         # Save to Firestore

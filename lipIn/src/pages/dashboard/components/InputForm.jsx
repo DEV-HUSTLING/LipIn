@@ -17,12 +17,14 @@ function InputForm() {
         userDescription: '',
         purpose: '',
         careerVision: '',
-        SSIscore: '',
-        profileFileAnalytics: [],
+        headline: '',
+        ssiScore: [],
         profileFile: [],
         resume: [],
         currentExp: '',
-        additionalInfo: ''
+        topics:[],
+        skills:[],
+        pastExperience: ''
     })
     useEffect(() => {
         console.log(profileId)
@@ -51,19 +53,29 @@ const submitForm = () => {
     formData.append('userDescription', inputForm.userDescription || '');
     formData.append('purpose', inputForm.purpose || '');
     formData.append('careerVision', inputForm.careerVision || '');
-    formData.append('SSIscore', inputForm.SSIscore || '');
+    formData.append('headline', inputForm.headline || '');
     formData.append('currentExp', inputForm.currentExp || '');
-    formData.append('additionalInfo', inputForm.additionalInfo || '');
+    formData.append('pastExperience', inputForm.pastExperience || '');
     
     // Add profileFileAnalytics files
-    if (Array.isArray(inputForm.profileFileAnalytics)) {
-        inputForm.profileFileAnalytics.forEach((file) => {
+    if (Array.isArray(inputForm.ssiScore)) {
+        inputForm.ssiScore.forEach((file) => {
             if (file instanceof File) {
-                formData.append('profileFileAnalytics', file);
+                formData.append('ssiScore', file);
             }
         });
     }
-    
+    // Add skills array
+     if(inputForm.topics){
+    inputForm.topics.forEach(ele => {
+        formData.append('topics',ele)
+    });
+   }
+   if(inputForm.skills){
+    inputForm.skills.forEach(ele => {
+        formData.append('skills',ele)
+    });
+   } 
     // Add profileFile files
     if (Array.isArray(inputForm.profileFile)) {
         inputForm.profileFile.forEach((file) => {
@@ -81,6 +93,7 @@ const submitForm = () => {
             }
         });
     }
+
     
     axios.post('http://127.0.0.1:8000/personalInfo', formData, {
         headers: {
@@ -94,19 +107,30 @@ const submitForm = () => {
         console.error('Error:', error.response?.data || error);
     });
 };
+const removeFile = (fileName, fileIndex)=>{
+    console.log('removing file:', fileName, fileIndex);
+ setInputForm(prev => ({
+        ...prev, 
+        [fileName]: prev[fileName].filter((_, index) => index !== fileIndex)
+    }));
+}
+const handleArrChange=(e)=>{
+    const {name,value} = e.target;
+    if(e.key === 'Enter'){
+        e.preventDefault();
+        const valuesArr = value.split(',').map(item=> item.trim()).filter(item=>item!=='');
+        setInputForm(prev=>({
+            ...prev,
+            [name]: [...prev[name],...valuesArr]
+        }))
+    }
+}
+if(inputForm){
+    console.log(inputForm)
+}
+ 
     return (
         <div className='Container'>
-            <header>
-                <div className='Header'>
-                    <h3><span style={{ color: 'black' }}>Lip</span><span style={{ color: '#F4287B', fontWeight: 'bold' }}>In</span></h3>
-                    <Button variant="contained" sx={{
-                        backgroundColor: '#F4287B',
-                        color: 'white',
-                    }}>
-                        SignIn
-                    </Button>
-                </div>
-            </header>
             <main style={{ paddingLeft: '2rem', paddingRight: '2rem' }}>
                 <div className='FormMain'>
                     <div>
@@ -152,18 +176,18 @@ const submitForm = () => {
                             </div>
                             {/* SSI Score */}
                             <div>
-                                <InputLabel htmlFor="my-input-6">Provide your profile SSI Score</InputLabel>
-                                <Input name='SSIscore' type='text' value={inputForm.SSIscore} onChange={handleChange} fullWidth='true' id="my-input-6" placeholder='Building Network/Finding Job/Promoting Company/Hiring' aria-describedby="my-helper-text" />
+                                <InputLabel htmlFor="my-input-6">LinkedIn Headline</InputLabel>
+                                <Input name='headline' type='text' value={inputForm.headline} onChange={handleChange} fullWidth='true' id="my-input-6" placeholder='Building Network/Finding Job/Promoting Company/Hiring' aria-describedby="my-helper-text" />
                                 <FormHelperText id="my-helper-text"><a href="https://business.linkedin.com/sales-solutions/social-selling/the-social-selling-index-ssi">{`You can get your SSI score here(click on Get your SSI score after going into the page)`}</a>
                                 </FormHelperText>
                             </div>
                             {/* Analytics Documents */}
                             <div className='UploadSection'>
                                 <div style={{ display: 'flex', gap: '1rem', width: '100%', overflow: 'scroll', scrollbarWidth: 'none', alignItems: 'center', justifyContent: 'flex-start' }}>
-                                    {inputForm.profileFileAnalytics && inputForm.profileFileAnalytics.map((it) =>
+                                    {inputForm.ssiScore && inputForm.ssiScore.map((it, index) =>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: 'max-content', padding: '5px', textAlign: 'center', borderRadius: '10rem', backgroundColor: '#d5d5d5ff', border: 'none', outline: 'none' }}>
                                             {it.name}
-                                            <button style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
+                                            <button onClick={()=>removeFile('ssiScore', index)}  style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
                                                 <HighlightOffIcon fontSize="small" />
                                             </button>
                                         </div>
@@ -175,8 +199,8 @@ const submitForm = () => {
                                     cursor: 'pointer',
                                     borderRadius: '4px',
                                     height: '5vh'
-                                }} htmlFor="my-input-7">Attach your LinkedIn profile analytics <AttachFileIcon />
-                                    <Input multiple name="profileFileAnalytics" onChange={handleChange} type='file' fullWidth='true' id="my-input-7" placeholder='Add profile analytics' aria-describedby="my-helper-text" /></InputLabel>
+                                }} htmlFor="my-input-7">Attach your SSI Analytics Complete Screenshot <AttachFileIcon />
+                                    <Input multiple name="ssiScore" onChange={handleChange} type='file' fullWidth='true' id="my-input-7" placeholder='Add profile analytics' aria-describedby="my-helper-text" /></InputLabel>
                                 <FormHelperText id="my-helper-text">{`You can find it in your profile page scroll to Analytics tab and take a screen shot`}
                                 </FormHelperText>
 
@@ -184,10 +208,10 @@ const submitForm = () => {
                             {/* Profile Link */}
                             <div className='UploadSection'>
                                 <div style={{ display: 'flex', gap: '1rem', width: '100%', overflow: 'scroll', scrollbarWidth: 'none', alignItems: 'center', justifyContent: 'flex-start' }}>
-                                    {inputForm.profileFile && inputForm.profileFile.map((it) =>
+                                    {inputForm.profileFile && inputForm.profileFile.map((it,index) =>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: 'max-content', padding: '5px', textAlign: 'center', borderRadius: '10rem', backgroundColor: '#d5d5d5ff', border: 'none', outline: 'none' }}>
                                             {it.name}
-                                            <button style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
+                                            <button onClick={()=>removeFile('profileFile', index)}  style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
                                                 <HighlightOffIcon fontSize="small" />
                                             </button>
                                         </div>)}
@@ -200,19 +224,19 @@ const submitForm = () => {
                                         borderRadius: '4px',
                                         height: '5vh'
                                     }}
-                                    htmlFor="my-input-8">Attach your LinkedIn profile pdf <AttachFileIcon />
+                                    htmlFor="my-input-8">Attach your all LinkedIn profile related analytics files <AttachFileIcon />
                                     <Input multiple name="profileFile" onChange={handleChange} type='file' fullWidth='true' id="my-input-8" placeholder='Building Network/Finding Job/Promoting Company/Hiring' aria-describedby="my-helper-text" />
                                 </InputLabel>
-                                <FormHelperText id="my-helper-text">{`you can dowload by selecting Resources button in your LinkedIn profile page.`}
+                                <FormHelperText id="my-helper-text">{`you can dowload by selecting Resources button in your LinkedIn profile page. if you premium account you can download more analytics data.`}
                                 </FormHelperText>
                             </div>
                             {/* Resume Link */}
                             <div className='UploadSection'>
                                 <div style={{ display: 'flex', gap: '1rem', width: '100%', overflow: 'scroll', scrollbarWidth: 'none', alignItems: 'center', justifyContent: 'flex-start' }}>
-                                    {inputForm.resume && inputForm.resume.map((it) =>
+                                    {inputForm.resume && inputForm.resume.map((it,index) =>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: 'max-content', padding: '5px', textAlign: 'center', borderRadius: '10rem', backgroundColor: '#d5d5d5ff', border: 'none', outline: 'none' }}>
                                             {it.name}
-                                            <button style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
+                                            <button onClick={()=>removeFile('resume', index)} style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
                                                 <HighlightOffIcon fontSize="small" />
                                             </button>
                                         </div>)}
@@ -243,19 +267,53 @@ const submitForm = () => {
                                     placeholder='Describe your current experience'
                                     style={{ width: '100%', height: 200, border: '1px solid rgba(169 169 169 / 29%)', borderRadius: '6px', backgroundColor: 'rgba(255 255 255 / 24%)' }} fullWidth='true' id="my-input-10" aria-describedby="my-helper-text" />
                             </div>
+                              {/*Skills*/}
+                            <div>
+                                <div style={{ display: 'flex', gap: '1rem', width: '100%', overflow: 'scroll', scrollbarWidth: 'none', alignItems: 'center', justifyContent: 'flex-start' }}>
+                                    {inputForm.skills && inputForm.skills.map((it, index) =>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: 'max-content', padding: '5px', textAlign: 'center', borderRadius: '10rem', backgroundColor: '#d5d5d5ff', border: 'none', outline: 'none' }}>
+                                            {it}
+                                            <button onClick={()=>removeFile('skills', index)}  style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
+                                                <HighlightOffIcon fontSize="small" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                                <InputLabel htmlFor="my-input-11">Skills</InputLabel>
+                                <Input type='text' name='skills' onKeyDown={handleArrChange} fullWidth='true' id="my-input-11" placeholder='Enter you intersted topics sepatated by topic. At the end click enter to add it in the form.' aria-describedby="my-helper-text" />
+
+                            </div>
+
+                            {/*Topics of interest */}
+                            <div>
+                                <div style={{ display: 'flex', gap: '1rem', width: '100%', overflow: 'scroll', scrollbarWidth: 'none', alignItems: 'center', justifyContent: 'flex-start' }}>
+                                    {inputForm.topics && inputForm.topics.map((it, index) =>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: 'max-content', padding: '5px', textAlign: 'center', borderRadius: '10rem', backgroundColor: '#d5d5d5ff', border: 'none', outline: 'none' }}>
+                                            {it}
+                                            <button onClick={()=>removeFile('topics', index)}  style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
+                                                <HighlightOffIcon fontSize="small" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                                <InputLabel htmlFor="my-input-12">Topics of interest</InputLabel>
+                                <Input type='text' name='topics' onKeyDown={handleArrChange} fullWidth='true' id="my-input-12" placeholder='Enter you intersted topics sepatated by topic. At the end click enter to add it in the form.' aria-describedby="my-helper-text" />
+
+                            </div>
+
                             {/*Additional Information */}
                             <div>
-                                <InputLabel htmlFor="my-input-11">Additional Information</InputLabel>
+                                <InputLabel htmlFor="my-input-13">Past Professional Experiences</InputLabel>
                                 <TextareaAutosize
                                     type='textarea'
-                                    value={inputForm.additionalInfo}
-                                    name='additionalInfo'
+                                    value={inputForm.pastExperience}
+                                    name='pastExperience'
                                     onChange={handleChange}
                                     maxRows={8}
                                     aria-label="maximum height"
                                     defaultValue=""
                                     style={{ width: '100%', height: 200, border: '1px solid rgba(169 169 169 / 29%)', borderRadius: '6px', backgroundColor: 'rgba(255 255 255 / 24%)' }}
-                                    fullWidth='true' id="my-input-11" placeholder='Add any more information you would like to add to describe yourself and your work. You can add links too.' aria-describedby="my-helper-text" />
+                                    fullWidth='true' id="my-input-13" placeholder='This include your work history, certifications, college or personal projects. Elaborate as thoroughly as you can.' aria-describedby="my-helper-text" />
                             </div>
                             <Button variant="contained" sx={{
                                 backgroundColor: '#0B68A6',

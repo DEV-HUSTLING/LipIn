@@ -51,6 +51,213 @@ class SSIImageProcessing:
                                 }
                             ]
                         }
+    
+class NicheRecommendation:
+    def __init__(self, career,linkedin_headline,linkedin_about,current_postion,skills,topics, work_experience):
+        self.career = career,
+        self.work_experience = work_experience
+        self.linkedin_headline = linkedin_headline
+        self.linkedin_about = linkedin_about
+        self.current_postion = current_postion
+        self.skills = skills
+        self.topics = topics
+    def generate_niche_prompt(self):
+        return[
+            {
+                "role": "system",
+                "content": """
+                You are a LinkedIn professional brand strategist. Your mission is to analyze user inputs and recommend high-level professional niches that align with industry-standard market positions and career growth opportunities.
+
+                ## INPUT ANALYSIS PRIORITIES
+
+                You will receive these key inputs:
+                1. **Current Professional Status**: LinkedIn headline, about section, current position, work experience
+                2. **Skill Portfolio**: Technical and soft skills they possess
+                3. **Interest Areas**: Topics they're passionate about and want to explore
+                4. **Career Aspirations**: Where they want to go professionally
+
+                ## NICHE DEVELOPMENT STRATEGY
+
+                ### Step 1: Professional Identity Mapping
+                - Identify their primary professional domain from work experience
+                - Map their skills to established industry roles and markets
+                - Assess their experience level and career trajectory
+
+                ### Step 2: Industry-Standard Role Alignment
+                Match their background to recognized professional categories such as:
+                - **Technology**: Data Engineer, Software Developer, DevOps Engineer, AI/ML Engineer, Cybersecurity Specialist
+                - **Business**: Management Consultant, Finance Consultant, Business Analyst, Product Manager, Operations Manager
+                - **Marketing & Sales**: Digital Marketing Specialist, Growth Marketer, Sales Manager, Customer Success Manager
+                - **Finance**: Financial Analyst, Investment Advisor, Risk Manager, Corporate Finance, Financial Planner
+                - **Healthcare**: Healthcare Administrator, Clinical Research, Health Tech Specialist, Medical Device Sales
+                - **Education**: Training & Development, Educational Technology, Academic Administration, Learning & Development
+
+                ### Step 3: Market Position Validation
+                Evaluate each potential niche on:
+                - **Industry Demand**: Current market need for this role (40% weight)
+                - **Experience Fit**: How well their background aligns (30% weight)
+                - **Growth Potential**: Career advancement opportunities (20% weight)
+                - **Passion Alignment**: Interest in the field (10% weight)
+
+                ## NICHE RECOMMENDATIONS APPROACH
+
+                Focus on **high-level professional categories** that represent:
+                - Established market positions
+                - Clear career progression paths
+                - Industry-recognized roles
+                - Broad professional markets
+
+                Examples of RECOMMENDED niches:
+                ✅ "Data Engineer"
+                ✅ "Finance Consultant" 
+                ✅ "Digital Marketing Specialist"
+                ✅ "Product Manager"
+                ✅ "Management Consultant"
+                ✅ "Software Developer"
+                ✅ "Business Analyst"
+
+                These are industry-standard roles that:
+                - Have clear market recognition
+                - Offer established career paths
+                - Provide broad professional opportunities
+                - Allow for specialization within the field
+
+                ## LINKEDIN BRAND GROWTH STRATEGY
+
+                For each recommended niche, provide:
+
+                ### Immediate Brand Positioning (0-3 months)
+                - Profile optimization strategies
+                - Content themes that establish expertise
+                - Key messaging and value proposition
+                - Target audience identification
+
+                ### Authority Building Path (3-12 months)  
+                - Content creation roadmap
+                - Thought leadership topics
+                - Network expansion strategy
+                - Proof points to develop
+
+                ### Long-term Brand Development (12+ months)
+                - Speaking opportunities and visibility
+                - Industry recognition goals
+                - Community building approaches
+                - Partnership and collaboration strategies
+
+                ## OUTPUT REQUIREMENTS
+
+                Provide 5 ranked niche recommendations in JSON format only. Each niche must include:
+
+                1. **Niche Definition**: Professional role/title name
+                2. **Confidence Score**: Overall fit score (0-100)
+                3. **One-Line Pitch**: Brief value proposition
+                4. **Market Analysis**: Target audience and opportunity
+                5. **Key Strengths**: What they already have going for them
+                6. **Priority Gap**: Most important area to develop
+                7. **Timeline**: Months to establish credibility
+
+                ## CRITICAL SUCCESS FACTORS
+
+                1. **Industry-Standard Focus**: Recommend recognized professional roles
+                2. **Market Demand**: Only suggest roles with strong job market demand
+                3. **Experience Alignment**: Build on their current background
+                4. **Realistic Timelines**: Set achievable expectations
+                5. **Concise Output**: Keep recommendations brief and actionable
+
+                Output ONLY valid JSON with no additional text, formatting, or explanations.
+                """
+            },
+            {
+                "role": "user",
+                "content": 
+                 f"""
+                 Analyze my profile and recommend 5 LinkedIn niches for me.
+                    ## MY LINKEDIN PROFILE
+
+                    **Headline:**
+                    {self.linkedin_headline}
+
+                    **About Section:**
+                    {self.linkedin_about}
+
+                    **Current Position:**
+                    {self.current_postion}
+
+                    **Work Experience:**
+                    {self.work_experience}
+
+                    **Skills:**
+                    {self.skills}
+
+                    ## MY INTERESTS
+
+                    **Topics I'm passionate about:**
+                    {self.topics}
+
+                    ## MY CAREER GOALS
+
+                    **Target role I'm aiming for:**
+                    {self.career if self.career else "Not specified"}
+
+                    ---
+                    Output exactly 5 niche recommendations in this JSON structure:
+                    {{
+                      "recommendedNiches": [
+                        {{
+                          "rank": 1,
+                          "niche": "Professional Role Title",
+                          "confidenceScore": 85,
+                          "oneLinePitch": "Brief value proposition",
+                          "targetAudience": "Who they serve",
+                          "keyStrengths": ["strength1", "strength2", "strength3"],
+                          "priorityGap": "Most important area to develop",
+                          "timelineMonths": 6
+                        }},
+                        {{
+                          "rank": 2,
+                          "niche": "Professional Role Title", 
+                          "confidenceScore": 80,
+                          "oneLinePitch": "Brief value proposition",
+                          "targetAudience": "Who they serve",
+                          "keyStrengths": ["strength1", "strength2", "strength3"],
+                          "priorityGap": "Most important area to develop",
+                          "timelineMonths": 8
+                        }},
+                        {{
+                          "rank": 3,
+                          "niche": "Professional Role Title",
+                          "confidenceScore": 75,
+                          "oneLinePitch": "Brief value proposition", 
+                          "targetAudience": "Who they serve",
+                          "keyStrengths": ["strength1", "strength2", "strength3"],
+                          "priorityGap": "Most important area to develop",
+                          "timelineMonths": 10
+                        }},
+                        {{
+                          "rank": 4,
+                          "niche": "Professional Role Title",
+                          "confidenceScore": 70,
+                          "oneLinePitch": "Brief value proposition",
+                          "targetAudience": "Who they serve", 
+                          "keyStrengths": ["strength1", "strength2", "strength3"],
+                          "priorityGap": "Most important area to develop",
+                          "timelineMonths": 12
+                        }},
+                        {{
+                          "rank": 5,
+                          "niche": "Professional Role Title",
+                          "confidenceScore": 65,
+                          "oneLinePitch": "Brief value proposition",
+                          "targetAudience": "Who they serve",
+                          "keyStrengths": ["strength1", "strength2", "strength3"], 
+                          "priorityGap": "Most important area to develop",
+                          "timelineMonths": 15
+                        }}
+                      ]
+                    }}
+                     """}
+            ]
+
 class SSIRecommendations:
     def __init__(self, ssi_data):
         self.ssi_data = ssi_data
