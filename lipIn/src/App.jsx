@@ -1,45 +1,16 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import { useTheme } from '@mui/material/styles';
-
-// import Link from '@mui/material/Link';
-// import Switch from '@mui/material/Switch';
 import Button from '@mui/material/Button';
 import InfoOutlineIcon from '@mui/icons-material/InfoOutline';
 // import { getPostDescription } from './content/utils.jsx';
-import Accordion from '@mui/material/Accordion';
-import AccordionActions from '@mui/material/AccordionActions';
-import AccordionSummary from '@mui/material/AccordionSummary';
-import AccordionDetails from '@mui/material/AccordionDetails';
-import Typography from '@mui/material/Typography';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-
 import {
   InputLabel,
-  OutlinedInput,
   MenuItem,
   Select
 } from '@mui/material';
+import CommentTracker from './commentTracker';
 function App({ host }) {
-
-  const theme = useTheme();
-  const ITEM_HEIGHT = 48;
-  const ITEM_PADDING_TOP = 8;
-  const MenuProps = {
-    PaperProps: {
-      style: {
-        maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
-        width: 250,
-      },
-    },
-  };
-  function getStyles(name, personName, theme) {
-    return {
-      fontWeight: personName.includes(name)
-        ? theme.typography.fontWeightMedium
-        : theme.typography.fontWeightRegular,
-    };
-  }
   const [expand, setExpand] = useState(false)
   // const [theme, setTheme] = useState(true)
   const [persona, setPersona] = useState('')
@@ -118,16 +89,24 @@ function App({ host }) {
       console.error('Error accessing chrome storage:', error);
       setAccentSelected(defaultAccent);
     }
-
+    console.log("hostName");
+        if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
+      console.log('Popup opened, triggering getProfileURL...');
+      chrome.runtime.sendMessage({ action: 'triggerGetProfileURL' }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error('Error triggering getProfileURL:', chrome.runtime.lastError);
+        } else {
+          console.log('GetProfileURL triggered successfully:', response);
+        }
+      });
+    }
   }, []);
 
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', fontFamily: '' }}>
-        <h1>
-          LipIn
-        </h1>
+    <div className='popup-container' style={{ display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '32px' }}>
+          <h3 style={{margin:'0'}} ><span style={{ color: 'black' }}>Lip</span><span style={{ color: '#F4287B', fontWeight: 'bold' }}>In</span></h3>
         <button onClick={() => { setExpand(!expand) }} style={{ backgroundColor: 'transparent', width: 'fit-content', outline: 'none', border: 'none', cursor: 'pointer' }}>
           <InfoOutlineIcon color='white' />
         </button>
@@ -142,33 +121,10 @@ function App({ host }) {
         </div>}
 
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-start', width: '90vw' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center'}}>
+        <CommentTracker />
         <hr style={{ borderColor: 'black' }} />
         <div className='main-content' style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2rem' }} >
-          <Accordion>
-        <AccordionSummary
-          expandIcon={<ExpandMoreIcon />}
-          aria-controls="panel1-content"
-          id="panel1-header"
-          sx={{
-  backgroundColor: '#212020ff',
-  color: 'white',
-  border: '1px solid white',
-  '&:hover': {
-    backgroundColor: 'darkgray',
-  },
-  '&.Mui-expanded': { // Class applied when expanded
-    backgroundColor: 'gray',
-  },
-  '.MuiSvgIcon-root': {
-                  color: 'white', // Sets the dropdown arrow icon color
-                }
-}}
-        >
-          <Typography component="span">Persona</Typography>
-        </AccordionSummary>
-        <AccordionDetails sx={{  backgroundColor: '#212020ff',
-  color: 'white',padding:'none'}}>
           <div>
           {personaStatus && <div> {newpersonaChck === persona ? <p style={{ color: 'red' }}> No changes made</p> : <p style={{ color: 'green' }}>Persona saved successfully!</p>}
             {newlanguageChck === accentSelected ? <p style={{ color: 'red' }}> No changes made</p> : <p style={{ color: 'green' }}>Language preference saved successfully!</p>}
@@ -178,40 +134,32 @@ function App({ host }) {
               setPersona(e.target.value);
             }}
             value={persona}
-            placeholder={persona || "Enter your persona here..."}
+            placeholder={persona || "About Me: Write your detailed perosnality here to generate the content in your style."}
             style={{
               width: '100%',
               height: '250px',
-              scrollbarWidth: 'thin',
-              padding: '1rem',
               borderRadius: '5px',
-              minHeight: '100px',
               resize: 'vertical'
             }}
           />
           </div>
-        </AccordionDetails>
-      </Accordion>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'start' }}>
-            <InputLabel color='white' style={{ color: 'white' }} id="demo-multiple-name-label">Language Prefference</InputLabel>
+          <div style={{ display: 'flex', alignItems: 'center', gap:'1rem',justifyContent:'center' }}>
+            <InputLabel id="demo-simple-select-standard-label">Dialect</InputLabel>
             <Select
-              labelId="language-select-label"
-              id="language-select"
+            variant="standard" 
+               labelId="demo-simple-select-standard-label"
+              id="demo-simple-select-standard"
               value={accentSelected || 'Use American English with plain, conversational language. Short sentences, common vocabulary, American spelling (color, organize), friendly and easy to understand.'}
               onChange={handleChange}
               placeholder={"Select Language Preference"}
-              input={<OutlinedInput label="Language Preference" />}
-              MenuProps={MenuProps}
-              style={{ width: '100%', color: 'white', border: '1px solid white' }}
               sx={{
-                '.MuiSvgIcon-root': {
-                  color: 'white', // Sets the dropdown arrow icon color
-                }
+                fontSize:'14px',
               }}
+              
             >
               {accents.map((accent) => (
-                <MenuItem key={accent.name} value={accent.value} style={getStyles(accent, accentSelected, theme)}
+                <MenuItem key={accent.name} value={accent.value} 
                 >
                   {accent.name}
                 </MenuItem>

@@ -1,0 +1,132 @@
+/* CONTENT SCRIPT STYLES - NO GLOBAL SELECTORS */
+/* Only styles scoped to our extension components */
+
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap');
+
+/* Scope all styles to LipIn extension components only */
+.lipin-comment-panel,
+.lipin_user_comment_tracker,
+.LipIn-comment-container,
+[data-lipin-comment-root] {
+  font-family: "Lato", sans-serif !important;
+  font-style: normal;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.lipin-comment-panel button,
+.lipin_user_comment_tracker button {
+  border-radius: 8px !important;
+  border: 1px solid transparent !important;
+  font-size: 1em !important;
+  font-weight: 500 !important;
+  font-family: "Lato", sans-serif !important;
+  background-color: #1a1a1a !important;
+  color: white !important;
+  cursor: pointer !important;
+  transition: border-color 0.25s !important;
+}
+
+.lipin-comment-panel button:hover,
+.lipin_user_comment_tracker button:hover {
+  border-color: #646cff !important;
+}
+
+.LipIn-comment-input-box {
+  border: 1px solid #ccc !important;
+  padding: 10px !important;
+  font-size: 16px !important;
+  box-sizing: border-box !important;
+  outline: none !important;
+  font-family: "Lato", sans-serif !important;
+}
+
+.LipIn-comment-container {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.LipIn-comment-post-button,
+.LipIn-comment-custom-button {
+  background: transparent !important;
+  color: white !important;
+  font-family: "Lato", sans-serif !important;
+}
+
+.LipIn-comment-tones {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+}
+
+/* Comment tracker styles */
+.commontTracker {
+  padding: 10px !important;
+  margin-bottom: 10px !important;
+  border: 1px solid rgb(228, 90, 146) !important;
+  box-shadow: rgba(242, 107, 249, 0.65) 0px 4px 8px 0px, rgba(242, 107, 249, 0.65) 0px 6px 20px 0px !important;
+  border-radius: 8px !important;
+  font-family: Lato !important;
+  font-weight: 400 !important;
+  font-style: normal !important;
+  box-sizing: border-box !important;
+}
+
+.commentCount {
+  display: flex !important;
+  flex-direction: column-reverse !important;
+  align-items: center !important;
+  justify-content: space-evenly !important;
+  color: black !important;
+}
+
+.commentCount .commentValue {
+  font-size: 3rem !important;
+}
+
+.commentHist .commentValue {
+  font-size: 2rem !important;
+}
+
+.commontTracker p {
+  font-size: 1.5rem !important;
+  font-weight: 500 !important;
+  margin: 0 !important;
+}
+
+.commontTracker h3 {
+  font-family: "Lato" !important;
+  font-weight: bold !important;
+  margin: 0 !important;
+}
+
+.commentDate span {
+  font-size: 24px !important;
+}
+
+.Dark_DatePicker span {
+  color: white !important;
+}
+
+.Light_DatePicker span {
+  color: black !important;
+}
+
+.Dark_DatePicker button {
+  color: white !important;
+}
+
+.Light_DatePicker button {
+  color: black !important;
+}
+
+
+.commentDate fieldset {
+  border: none !important;
+}
