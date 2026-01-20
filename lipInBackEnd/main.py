@@ -1,5 +1,9 @@
+<<<<<<< HEAD
+from fastapi import FastAPI, HTTPException, status, File, UploadFile, Form, HTTPException, Query
+=======
 from typing import Optional
 from fastapi import FastAPI, HTTPException
+>>>>>>> main
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
@@ -8,23 +12,49 @@ from pydantic import BaseModel
 import requests
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
-
+import firebase_admin
+from firebase_admin import credentials, firestore, auth
+from typing import List, Optional
+import json
+import logging
+from prompts import Comments, SSIRecommendations, SSIImageProcessing, NicheRecommendation,NicheSpecificRecommendation
+from helper import Image_Processor,Clean_JSON, File_to_Base64
 load_dotenv()
 app = FastAPI()
+<<<<<<< HEAD
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+logger = logging.getLogger(__name__)
+=======
 client = OpenAI()
+>>>>>>> main
 
+fireCred = credentials.Certificate(os.getenv("FIREBASE_API"))
+firebase_admin.initialize_app(fireCred)
+db = firestore.client()
 class CommentsBody(BaseModel):
     
     post: str
-    prompt: Optional[str] = None #Optional field with a default value of None
-    tone: Optional[str] = None #Optional field with a default value of None
-    persona: Optional[str] = None #Optional field with a default value of None
-    language: Optional[str] = None #Optional field with a default value of None
+    prompt: str | None = None #Optional field with a default value of None
+    tone: str | None = None #Optional field with a default value of None
+    persona: str | None = None #Optional field with a default value of None
+    language: str | None = None #Optional field with a default value of None
+
 class profileLink(BaseModel):
     profile_url: str
+class nicheRecommend(BaseModel):
+    profile_url: str
+    niche: str
 class PostBody(BaseModel):
     userReq: str
     # prompt: str
+class GoogleSignInRequest(BaseModel):
+    profileURL: str
+class AskAIChat(BaseModel):
+    message: str
+    history: List[str] = []
+    profile_url: Optional[str] = None
+class GoogleSignInResponse(BaseModel):
+    message: str
 origins = [
     "http://localhost:3000",  # React default
     "http://127.0.0.1:3000",
@@ -32,21 +62,261 @@ origins = [
     "http://localhost:8000",  # React default
     "https://lipin.onrender.com",
     "https://myfrontenddomain.com",
-      "chrome-extension://mdopdgfnmofdffmlipbnflfbobefbeam"  # Production frontend
+    "chrome-extension://*",   # Allow ALL Chrome extensions
+
 ]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,       # or ["*"] to allow all (not recommended in prod)
+    allow_origins=origins,      
     allow_credentials=True,
-    allow_methods=["*"],         # GET, POST, PUT, DELETE, etc.
-    allow_headers=["*"],         # Allow all headers
-    # Allow chrome-extension:// origins used by unpacked extensions during development.
-    # exact origin matches are required by default; use a regex to permit any extension id.
+    allow_methods=["*"],        
+    allow_headers=["*"],         
     allow_origin_regex=r"^chrome-extension://.*$",
 )
+
+
 @app.get("/")
 async def welcome():
     return {"message":"Welcome to the FASTAPI"}
+
+
+@app.get("/profileAnalysis") #SSI Score Extraction throiugh Image
+async def get_personal_info(profile_url: str = Query(...)):
+    documents = []
+    
+    try:
+        # Validate profile_url is not empty
+        if not profile_url or profile_url.strip() == "":
+            raise HTTPException(400, "Profile URL cannot be empty")
+        
+        doc_ref = (
+            db.collection("users")
+            .document(profile_url.strip())  # Remove any whitespace
+            .collection("personalInfo")
+            .stream()
+        )
+    
+        for d in doc_ref:
+            documents.append(d.to_dict())
+        for doc in documents:
+            headline = doc.get("headline")
+            currentExp = doc.get("currentExp")
+            pastExp = doc.get("pastExperience")
+            about = doc.get("userDescription")
+            topic_files = doc.get("topicsFiles")
+            topics=[]
+            if topic_files:
+                for topic in topic_files:
+                    topics.append(topic)
+            skills_files = doc.get("skillsFiles")
+            skills = []
+            if skills_files:
+                for skill in skills_files:
+                    skills.append(skill)
+            career = doc.get("careerVision")
+
+            ssi_files = doc.get("ssiScoreFiles")
+            if ssi_files:
+                for img in ssi_files:
+                    image_type = "jpeg"
+                    data_uri = f"data:image/{image_type};base64,{img["base64"]}"
+                    ssi_image_extraction = SSIImageProcessing(data_uri)
+                    ssi_img_response = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "You are an AI assistant that will extract the key information like SSI score, individual component values, Industry and Network ranks, and comparitive data."},
+                        
+                        ssi_image_extraction.generate_prompt()
+                        
+                     ],
+                    max_tokens=300
+                    )
+                # Clean responses using helper function
+                ssi_cleaner = Clean_JSON(ssi_img_response.choices[0].message.content)
+                cleaned_response = ssi_cleaner.clean_json_response()
+
+                # Niche REcommendations
+                niche_analysis_prompt = NicheRecommendation(career,headline,about,currentExp,skills,topics, pastExp)
+                niche_analysis = client.chat.completions.create(
+                    model = "gpt-4o-mini",
+                    messages = niche_analysis_prompt.generate_niche_prompt(),
+                    max_tokens = 800
+                )
+                niche_recomendation_cleaner = Clean_JSON(niche_analysis.choices[0].message.content)
+                cleaned_niche_analysis = niche_recomendation_cleaner.clean_json_response() 
+                # SSI Improvement Recommendations
+                ssi_analysis_prompt = SSIRecommendations(cleaned_response) #Generate's SSI Improvement Recommendations
+                ssi_analysis = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "You are a LinkedIn SSI optimization agent focused to improve the user's SSI score based on the extracted data. Specifically, provide the recommedations to improve each of the four components of the SSI score."},
+                        {
+                            "role": "user",
+                            "content": [
+                            {"type": "text", "text": ssi_analysis_prompt.generate_ssi_analysis() },
+                            ]
+                        }
+                     ],
+                    max_tokens=800  # Increased for detailed recommendations
+                    )
+                ssi_analysis_cleaner = Clean_JSON(ssi_analysis.choices[0].message.content)
+                cleaned_ssi_analysis = ssi_analysis_cleaner.clean_json_response()                
+                try:
+                    # Parse SSI data
+                    parsed_data = json.loads(cleaned_response)
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing SSI data: {e}")
+                    print(f"Raw SSI response: {cleaned_response}")
+                    # Return error with raw response for debugging
+                    return {
+                        "success": False,
+                        "message": "Failed to parse SSI data",
+                        "error": str(e),
+                        "raw_ssi_response": cleaned_response
+                    }
+                try:
+                    # Parse SSI data
+                    parsed_nicheRecom_data = json.loads(cleaned_niche_analysis)
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing SSI data: {e}")
+                    print(f"Raw SSI response: {cleaned_niche_analysis}")
+                    # Return error with raw response for debugging
+                    return {
+                        "success": False,
+                        "message": "Failed to parse SSI data",
+                        "error": str(e),
+                        "raw_ssi_response": cleaned_niche_analysis
+                    }
+                try:
+                    # Parse recommendations data
+                    recommendations_data = json.loads(cleaned_ssi_analysis)
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing recommendations: {e}")
+                    print(f"Raw recommendations response: {cleaned_ssi_analysis}")
+                    # Return SSI data without recommendations
+                    return {
+                        "success": True,
+                        "message": "SSI data processed, but recommendations parsing failed",
+                        "data": {
+                            "ssi_data": parsed_data,
+                            "recommendations": [],
+                            "recommendations_error": str(e),
+                            "raw_recommendations_response": cleaned_ssi_analysis
+                        }
+                    }
+                
+                # Combine both results
+                combined_result = {
+                    "ssi_data": parsed_data,
+                    "ssi_recommendations": recommendations_data,
+                    "niche_recommendations": parsed_nicheRecom_data
+
+                }
+
+        return {"success": True, "message": "Images processed successfully", "data": combined_result}
+    
+    except Exception as e:
+        print("ERROR:", e)
+        raise HTTPException(500, f"Error processing personal info: {str(e)}")
+
+@app.post("/personalInfo") #Store User Personal Info
+async def create_personal_info(
+                            url: str = Form(...),
+        email: str = Form(...),
+        name: str = Form(...),
+        userDescription: str = Form(...),
+        purpose: str = Form(...),
+        careerVision: str = Form(...),
+        headline: str = Form(...),
+        ssiScore:  Optional[List[UploadFile]] = File(None),
+        profileFile:  Optional[List[UploadFile]] = File(None),
+        resume:  Optional[List[UploadFile]] = File(None),
+        currentExp: str = Form(...),
+        topics: List[str] = Form([]),
+        skills: List[str] = Form([]),
+        pastExperience: str = Form(...),
+                ):
+    try:
+        file_cvt = File_to_Base64()
+        # Process ssiScore files
+        ssiScore_list = []
+        if ssiScore is not None:
+            for file in ssiScore:
+                if hasattr(file, 'filename') and file.filename:
+                    # Fix the method call - pass the file as argument
+                    print(f"Processing file: {file}")
+                    converted_file = await file_cvt.file_to_base64(file)
+                    ssiScore_list.append(converted_file)
+        
+        # Process profile files
+        profileFile_list = []
+        if profileFile is not None:
+            for file in profileFile:
+                if hasattr(file, 'filename') and file.filename:
+                    profileFile_list.append(await file_cvt.file_to_base64(file))
+        
+        # Process resume files
+        resume_list = []
+        if resume is not None:
+            for file in resume:
+                if hasattr(file, 'filename') and file.filename:
+                    resume_list.append(await file_cvt.file_to_base64(file))
+        
+        # Create data
+        data = {
+            "email": email,
+            "name": name,
+            "userDescription": userDescription,
+            "purpose": purpose,
+            "careerVision": careerVision,
+            "headline": headline,
+            "ssiScoreFiles": ssiScore_list,
+            "profileFileAnalytics": profileFile_list,
+            "resumeFiles": resume_list,
+            "currentExp": currentExp,
+            "topicsFiles": topics,
+            "skillsFiles": skills,
+            "pastExperience": pastExperience
+        }
+        
+        # Save to Firestore
+        _, doc_ref = db.collection("users").document(url).collection('personalInfo').add(data)
+        
+        return {
+            "success": True,
+            "message": "Personal information saved successfully",
+            "document_id": doc_ref.id
+        }
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(500, str(e))
+
+@app.post("/signin", response_model=GoogleSignInResponse)
+async def google_sign_in(request: GoogleSignInRequest):
+    try:
+        doc_ref = (
+            db.collection("users")
+            .document(request.profileURL)
+            .collection('personalInfo')
+        )
+        docs = list(doc_ref.limit(1).stream())
+        
+        user_exists = len(docs) > 0
+        if user_exists:
+            return GoogleSignInResponse(
+                message="existing_user"
+            )
+        else:
+            return GoogleSignInResponse(
+                message="new_user"
+            )
+
+    except HTTPException:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred during authentication"
+        )
 
 @app.post("/AIcomments")
 def get_ai_comments(body: CommentsBody):
@@ -55,164 +325,16 @@ def get_ai_comments(body: CommentsBody):
     tone = body.tone if body.tone else "Professional, positive, conversational tone"
     persona = body.persona if body.persona else "Mid level professional with a focus on collaboration and innovation"
     language = body.language if body.language else 'Use American English with plain, conversational language. Short sentences, common vocabulary, American spelling (color, organize), friendly and easy to understand.'
+    commnets_input = Comments(prompt, persona, tone, post, language)
     try:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are an AI that writes authentic, high-quality LinkedIn comments that sound like they were written by a real professional—not generic or promotional."},
-                {"role": "user", "content": f"""
-
-About Me
-${persona}
-
-The Post I'm Commenting On
-"${post}"
-
-How I Want to Sound
-${tone}
-
-Language I'm Writing In
-${language}
-
-What I'm Specifically Looking For
-${prompt}
-
-How I Respond Based on Post Type:🎯 If It's About Hiring/Open Positions:
-
-Show genuine interest if it aligns with my background
-Ask specific questions about the role (tech stack, team size, remote policy, etc.)
-Share my email/contact info if I'm interested: "This sounds like a fit - I have experience with [specific skill]. Should I DM you or is there an email?"
-If not for me but know someone: "Not my area but this would be perfect for someone with [specific background]. Mind if I share?"
-Keep it short and actionable
-🎉 If It's Celebrating a Milestone/Achievement:
-
-Acknowledge the specific achievement with real appreciation
-If I've been through something similar, share concrete details: "Hit this same milestone last year - the feeling when [specific moment] is unreal"
-If I haven't, ask a genuine question about their journey: "How long did it take from [starting point] to hit this?"
-Don't just say "congrats" - make it personal and specific
-Reference the actual numbers/metrics they shared
-📚 If It's About Mistakes/Lessons Learned:
-
-Appreciate their transparency: "Takes guts to share this publicly"
-If I've made similar mistakes, share what happened and what I learned
-If I have a different approach, offer it constructively: "Have you tried [specific alternative]? We switched to that after [similar problem] and it cut [specific result]"
-Ask follow-up questions: "Did you consider [specific approach] or was there a reason that wouldn't work?"
-Never preach - stay curious and collaborative
-🚀 If It's About New Tech/Tools/Methods:
-
-Ask specific questions to learn more: "How does this compare to [similar tool]?"
-Request concrete details: "What's the learning curve like?" or "Does it integrate with [relevant stack]?"
-Share if I've used it: "Tested this last month - [specific experience and result]"
-If it's useful, thank them genuinely: "Didn't know this existed - exactly what I needed for [specific use case]"
-If skeptical, ask clarifying questions rather than dismissing
-💭 If It's an Opinion/Hot Take:
-
-Engage with their specific argument, not generic agreement/disagreement
-Challenge constructively with data or experience: "Interesting, but when we tried [their approach], we saw [specific result]. Did you account for [specific factor]?"
-Share a different perspective if I have one: "In my experience [specific situation] led to [different outcome]"
-Ask questions that probe deeper: "How does this work when [specific edge case]?"
-📢 If It's Announcing Something (Product Launch, Article, Event):
-
-If genuinely interested: "Checking this out - specifically curious about [exact feature/topic]"
-Ask a real question: "Does it handle [specific use case I care about]?"
-Share if I've tried it: "Used the beta - the [specific feature] saved me [specific amount of time/money]"
-If not relevant to me: skip it or keep it ultra-short
-
-Rules I Follow When Commenting:
-
-🚫 Phrases I Never Use:
-
-"truly inspiring" / "inspiring journey"
-"really resonates" / "resonates with me"
-"well said" / "couldn't agree more"
-"powerful testament" / "testament to"
-"great insights" / "interesting perspective"
-Anything that sounds like a motivational poster
-Don't quote EXACT phrases from the post
-✅ What I Always Include:
-
-Reference a specific detail, number, or example from the post
-Share a CONCRETE experience from my own work (with real details)
-Use specifics: names, numbers, timeframes, situations - not vague concepts
-✅ How I Like to Start Comments (I rotate these):
-
-Direct Question: "How long did the rollback take?"
-Stat/Number Hook: "3-hour recovery is impressive—..."
-Shared Experience: "Hit the same issue last month—..."
-Specific Detail: "The validation checklist approach..."
-Casual Observation: "Wait, you automated the rollback?"
-Challenge/Pushback: "Interesting, but doesn't that slow deployment?"
-Direct Statement: "This happened to us too."
-Tool/Method Reference: "Using GitHub Actions for validation is smart—..."
-I mix it up. I don't want to sound repetitive with "When you mentioned..." every time.
-
-My Formula for Being Specific:
-Instead of generic stuff like:
-
-"Your journey is inspiring"
-I write:
-
-"When you mentioned [EXACT DETAIL], it reminded me of [SPECIFIC SITUATION with CONCRETE DETAILS]"
-Instead of:
-
-"This resonates with my experience"
-I write:
-
-"I faced the same issue when [SPECIFIC EVENT] - we solved it by [SPECIFIC ACTION] and saw [SPECIFIC RESULT]"
-Instead of:
-
-Examples of How I Comment:
-Post: "Moved to Berlin 2 years ago. The first 6 months were brutal - couldn't understand German bureaucracy, missed my mom's cooking, and my startup failed. But I rebuilt, learned the language, and just closed our Series A."
-
-❌ What I don't do: "The resilience you've shown is truly inspiring. Your growth reflects deep personal transformation."
-
-✅ What I actually write: "The 6-month mark is brutal—I hit the same wall in Amsterdam and almost gave up. What made you stick it out? For me it was finding a Stammtisch that met Thursdays. Also, closing a Series A after a failed startup is a massive credibility boost with investors. How did you frame the failure story in your pitch?"
-
-Post: "Unpopular opinion: Code reviews are killing productivity. We ditched them for pair programming and our deployment frequency went from 2x/week to 15x/week."
-
-❌ What I don't do: "Interesting perspective on development workflows. Every team is different."
-
-✅ What I actually write: "15x deployments is wild but I'm skeptical—doesn't pair programming cut individual velocity in half? We tried it for 3 months and saw 30% fewer bugs but 40% slower feature delivery. Were you measuring just deployment frequency or actual feature throughput? Also curious if your team is < 10 people where this scales better."
-
-Post: "Just failed my third startup in 5 years. Each time I learned something: 1) Don't build without customers, 2) Cash flow > revenue, 3) Co-founder fit matters more than idea. Now consulting and honestly happier."
-
-❌ What I don't do: "Your growth journey shows incredible resilience. These lessons are valuable."
-
-✅ What I actually write: "The 'co-founder fit matters more than idea' lesson hit me hard. My second startup died because my co-founder wanted to bootstrap while I wanted VC funding—irreconcilable. Are you keeping consulting as your main gig or building runway for attempt #4? Also, what's your burn rate tolerance now vs startup #1?"
-
-My Process:
-I find the MOST SPECIFIC thing in the post:
-A number or statistic
-A concrete action they took
-A specific challenge they faced
-An exact quote or phrase
-A named person, place, or thing
-I build my comment around that specific element:
-Exact references ("When you said X...", "The part about Y...", "Your Z approach...")
-Concrete details from my experience (numbers, names, timeframes)
-Specific follow-up questions with context
-I make sure it sounds like ME:
-My tone matches who I am (from my persona above)
-I focus on what I'd actually care about
-I speak the way I naturally would
-I don't sound generic or detached
-I don't summarize the whole post
-I don't make up details
-I make it IMPOSSIBLE to reuse on another post
-Length:
-Default: 10-40 words (1-2 sentences MAX)
-Only go longer (2-4 sentences, 50-100 words) if I specifically said "long comment" or "detailed response"
-I always count words before finishing - if it's over 40 without me asking for more, I cut it down
-My Final Check:
-Before I finish, I ask myself: "Could I copy-paste this comment on 3 other similar posts?"
-
-If YES → Too generic, need more specific details
-If NO → Good to go
-Output:
-Write my comment using everything above. No generic phrases. No abstract concepts. Only concrete specifics that sound like me.
-
-
-"""}
+                {
+                      "role": "user",
+                      "content": commnets_input.generate_prompt()
+            }
             ],
             max_tokens=100,
             n=1,
@@ -220,15 +342,15 @@ Write my comment using everything above. No generic phrases. No abstract concept
             temperature=0.7,
         )
         comment = response.choices[0].message.content.strip()
+<<<<<<< HEAD
+=======
         print("prompt:", prompt)
         print("comment:", comment)
 
+>>>>>>> main
         return {"comment": comment}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# API to create content for LinkedIn posts
 
 @app.post("/AIposts")
 def get_ai_postsContent(body: PostBody):
@@ -277,6 +399,167 @@ def get_ai_postsContent(body: PostBody):
         return {"posts": posts}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/askAIChats")
+def get_ai_postsContent(body:AskAIChat ):
+    userMsg = body.message
+    history = body.history
+    profile_url = body.profile_url
+    print('user message:', userMsg)
+    print('conversation history:', history)
+    print('profile_url:', profile_url)
+    
+    # Initialize variables with default values
+    headline = ""
+    currentExp = ""
+    pastExp = ""
+    about = ""
+    topics = []
+    skills = []
+    career = ""
+    if profile_url:
+        try:
+            documents = []
+            doc_ref = (
+                db.collection("users")
+                .document(profile_url.strip())
+                .collection("personalInfo")
+                .stream()
+            )
+            
+            for d in doc_ref:
+                documents.append(d.to_dict())
+            
+            # Extract user information if documents exist
+            for doc in documents:
+                headline = doc.get("headline", "")
+                currentExp = doc.get("currentExp", "")
+                pastExp = doc.get("pastExperience", "")
+                about = doc.get("userDescription", "")
+                career = doc.get("careerVision", "")
+                topic_files = doc.get("topicsFiles", [])
+                if topic_files:
+                    for topic in topic_files:
+                        topics.append(topic)
+                skills_files = doc.get("skillsFiles", [])
+                if skills_files:
+                    for skill in skills_files:
+                        skills.append(skill)
+        except Exception as e:
+            print(f"Error fetching user data: {e}")    
+    try:
+        # Build conversation messages with personalized system prompt
+        system_content = f"""
+        Role: You are a LinkedIn brand Content Creator. 
+        Task: Assist users based on their request to improve their LinkedIn presence. Below is the background information of the user to help you provide better responses.
+        
+        Background Information of user:
+        LinkedIn Headline: {headline}
+        Current Experience: {currentExp}
+        Past Experience: {pastExp}
+        About: {about}
+        User's topics of interest: {', '.join(topics)}
+        User's skills: {', '.join(skills)}
+        User's career vision: {career}
+        
+        Guidelines:
+        1. Use the background information to tailor your responses to the user's professional profile and aspirations.
+        2. Ensure that your responses align with LinkedIn's professional standards and best practices.
+        3. Provide actionable advice that the user can implement to enhance their LinkedIn presence.
+        4. Take the user background information into account while responding to the user's requests.
+        5. Act as if you have user's personality, preferences, and style in mind while responding.
+        """
+        
+        messages = [{"role": "system", "content": system_content}]
+        
+        # Add conversation history
+        for i, msg in enumerate(history):
+            if i % 2 == 0:  # Even indices are user messages
+                messages.append({"role": "user", "content": msg})
+            else:  # Odd indices are assistant responses
+                messages.append({"role": "assistant", "content": msg})
+        
+        # Add current user message
+        messages.append({"role": "user", "content": userMsg})
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            max_tokens=1000,
+            n=1,
+            stop=None,
+            temperature=0.7,
+        )
+        aiResponse = response.choices[0].message.content.strip()
+        print(aiResponse)
+        return {"response": aiResponse}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/nicheRecommendations")
+def get_niche_recommendations(
+    body: nicheRecommend
+):
+    try:
+        documents = []
+        doc_ref = (
+            db.collection("users")
+            .document(body.profile_url)
+            .collection("personalInfo")
+            .stream()
+        )
+        
+        for d in doc_ref:
+            documents.append(d.to_dict())
+        
+        # Extract user information if documents exist
+        for doc in documents:
+            headline = doc.get("headline", "")
+            currentExp = doc.get("currentExp", "")
+            pastExp = doc.get("pastExperience", "")
+            about = doc.get("userDescription", "")
+            career = doc.get("careerVision", "")
+            topic_files = doc.get("topicsFiles", [])
+            topics=[]
+            if topic_files:
+                for topic in topic_files:
+                    topics.append(topic)
+            skills_files = doc.get("skillsFiles", [])
+            skills = []
+            if skills_files:
+                for skill in skills_files:
+                    skills.append(skill)
+        
+        # Generate niche-specific SSI recommendations
+        niche_analysis_prompt = NicheSpecificRecommendation(career,headline,about,currentExp,skills,topics, pastExp, body.niche)
+        niche_analysis = client.chat.completions.create(
+            model = "gpt-4o-mini",
+            messages = niche_analysis_prompt.generate_ssi_recommendations(),
+            max_tokens = 800
+        )
+        niche_recomendation_cleaner = Clean_JSON(niche_analysis.choices[0].message.content)
+        cleaned_niche_analysis = niche_recomendation_cleaner.clean_json_response() 
+        try:
+            # Parse niche recommendations data
+            recommendations_data = json.loads(cleaned_niche_analysis)
+        except json.JSONDecodeError as e:
+            print(f"Error parsing niche recommendations: {e}")
+            print(f"Raw niche recommendations response: {cleaned_niche_analysis}")
+            # Return error with raw response for debugging
+            return {
+                "success": False,
+                "message": "Failed to parse niche recommendations",
+                "error": str(e),
+                "raw_niche_recommendations_response": cleaned_niche_analysis
+            }
+        
+        return {"success": True, "message": "Niche recommendations generated successfully", "data": recommendations_data}
+    
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(500, str(e))
 
 # @app.post("/AIprofile_scrapper")
 # def get_ai_profile_scrapper(body: profileLink):

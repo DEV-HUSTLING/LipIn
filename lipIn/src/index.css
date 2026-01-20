@@ -1,73 +1,98 @@
+/* Only import fonts for extension components */
 @import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap');
 
-@import "tailwindcss";
-:root {
+/* Scope all styles to LipIn extension components only */
+.lipin-comment-panel,
+.lipin_user_comment_tracker,
+.LipIn-comment-container,
+[data-lipin-comment-root] {
+  font-family: "Lato", sans-serif;
+  font-style: normal;
   line-height: 1.5;
   font-weight: 400;
-  font-family: "Lato";
-  font-style: normal;
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
+.lipin-comment-panel a {
   font-weight: 500;
   color: #646cff;
   text-decoration: inherit;
 }
-a:hover {
+.lipin-comment-panel a:hover {
   color: #535bf2;
 }
 
-body {
-  margin: 0;
-  display: flex;
-  width: 400px;
-  min-height:max-content;
-
-}
-
-h1 {
+.lipin-comment-panel h1 {
   font-size: 3.2em;
   line-height: 1.1;
 }
 
-button {
+.lipin-comment-panel button,
+.lipin_user_comment_tracker button {
   border-radius: 8px;
   border: 1px solid transparent;
-  padding: 0.6em 1.2em;
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
   background-color: #1a1a1a;
   cursor: pointer;
   transition: border-color 0.25s;
+    /* width: 100%;
+    border: unset;
+    font-size: 1em !important;
+    font-weight: 500 !important;
+    font-family: Lato, sans-serif !important;
+    background-color: transparent !important;
+    color: #fff !important;
+    cursor: pointer !important;
+    transition: border-color .25s !important; */
 }
-button:hover {
+.lipin-comment-panel button:hover,
+.lipin_user_comment_tracker button:hover {
   border-color: #646cff;
 }
-button:focus,
-button:focus-visible {
+.lipin-comment-panel button:focus,
+.lipin-comment-panel button:focus-visible,
+.lipin_user_comment_tracker button:focus,
+.lipin_user_comment_tracker button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
 
 @media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
+  .lipin-comment-panel a:hover {
     color: #747bff;
   }
-  button {
+  .lipin-comment-panel button,
+  .lipin_user_comment_tracker button {
     background-color: #f9f9f9;
   }
+}
+
+.LipIn-comment-input-box{
+  width: 100%;
+  height: 100px;
+  border: 1px solid #ccc;
+  padding: 10px;
+  font-size: 16px;
+  box-sizing: border-box;
+  outline: none;
+
+}
+.LipIn-comment-container{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.LipIn-comment-post-button{
+  background: transparent;
+  color: white;
+}
+.LipIn-comment-custom-button{
+  background: transparent;
+  color: white;
 }
 .LipIn-comment-input-box{
   width: 100%;
@@ -80,8 +105,6 @@ button:focus-visible {
 
 }
 .LipIn-comment-container{
-  width: 100%;
-  height: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;

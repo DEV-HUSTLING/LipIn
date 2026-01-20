@@ -1,5 +1,4 @@
 *.env
 backend/.env
-# Secrets
-*.json
-lipInBackEnd/*.json
+echo "lipInBackEnd/*.json" >> .gitignore
+echo "**/*firebase-adminsdk*.json" >> .gitignore

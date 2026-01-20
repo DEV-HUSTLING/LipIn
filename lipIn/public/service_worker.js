@@ -36,7 +36,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     //   console.error('service_worker error responding to profile message', err);
     // }
   }
+ if (message && message.action === 'triggerGetProfileURL') {
+    // Get the active tab and send message to content script
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0] && tabs[0].url && tabs[0].url.includes('linkedin.com')) {
+        chrome.tabs.sendMessage(tabs[0].id, { action: 'executeGetProfileURL' }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('Error sending message to content script:', chrome.runtime.lastError);
+            sendResponse({ success: false, error: chrome.runtime.lastError.message });
+          } else {
+            console.log('Successfully triggered getProfileURL in content script');
+            sendResponse({ success: true, response: response });
+          }
+        });
+      } else {
+        console.log('Not on LinkedIn page, cannot execute getProfileURL');
+        sendResponse({ success: false, error: 'Not on LinkedIn page' });
+      }
+    });
 
+    return true; // Keep port open for async response
+  }
 
 });
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -63,8 +83,8 @@ async function handleGenerateComment(message) {
   const [post, prompt, tone] = message.text.split("\\\n");
   console.log('generateComment prompt:', prompt);
   
-  // const response = await fetch('http://127.0.0.1:8000/AIcomments', {
-  const response = await fetch('http://3.137.157.253/AIcomments', {
+  // const response = await fetch('https://lipin.onrender.com/AIcomments', {
+  const response = await fetch('https://lipin.onrender.com/AIcomments', {
 
     method: 'POST',
     headers: {

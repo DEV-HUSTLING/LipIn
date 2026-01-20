@@ -1,5 +1,5 @@
 ;
-import { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { getPostDescription } from './content/utils.jsx';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import WorkOutlineIcon from '@mui/icons-material/WorkOutline';
@@ -8,19 +8,18 @@ import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
 import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
 import SentimentNeutralIcon from '@mui/icons-material/SentimentNeutral';
 import SendIcon from '@mui/icons-material/Send';
-import {app}from './firebase.jsx';
+import {app}from './auth/firebase.jsx';
 import { getFirestore, collection,
   getDocs,
   addDoc,
   query,
   limit } from "firebase/firestore";
 // import logo from '../public/customAssets/logo.png';
-const Comment = ({ postEl, cmntArea, cmntBtn }) => {
+const Comment = ({ postEl, cmntArea, getCmntArea }) => {
   const [theme, setTheme] = useState("light");
   const [userCmntPrompt, setUserCmntPrompt] = useState('');
   const [cmntTool, setCmntTool] = useState(false);
   const [aiCmnt, setAiComnt] = useState('')
-  const [copyAlrt, setCoptAlrt] = useState(false)
   const [activeToneIndex, setActiveToneIndex] = useState(null)
   const [tones, setTones] = useState(false)
   const [tonePrompt, setTonePrompt] = useState('')
@@ -28,9 +27,11 @@ const Comment = ({ postEl, cmntArea, cmntBtn }) => {
   const [loader, setLoader] = useState(false)
   const [url, setUrl] = useState("");
   const db = getFirestore(app)
-  const profileSlugRef = useRef(null);
-const isSaving = useRef(false);
+  const isSaving = useRef(false);
+  const [actualCmntArea, setActualCmntArea] = useState(cmntArea);
+  const [cmntBtn,setCmntBtn] = useState(postEl?.querySelector('[data-view-name="comment-post"]'))
 
+// Detect LinkedIn page theme (light/dark) and respond to changes
 useEffect(() => {
 
     // Function to detect theme from the actual page
@@ -135,127 +136,264 @@ useEffect(() => {
       mediaQuery.removeEventListener("change", mediaListener);
     };
   }, []);
-      if (loader) {
-      cmntArea.textContent = "Generating comment...";
-    }
+
+
+// Try to find the actual comment area if not provided or delayed in loading
+useEffect(() => {
+  if (!actualCmntArea && getCmntArea) {
+    let attempts = 0;
+    const maxAttempts = 20; 
+    
+    const checkForArea = () => {
+      attempts++;
+      const area = getCmntArea();
+      
+      if (area) {
+        console.log('✅ Found comment area on attempt:', attempts);
+        setActualCmntArea(area);
+      } else if (attempts < maxAttempts) {
+        setTimeout(checkForArea, 150);
+      } else {
+        console.log('❌ Failed to find comment area after', maxAttempts, 'attempts');
+      }
+    };
+    checkForArea();
+  }
+}, [actualCmntArea, getCmntArea]);
+
+// Handle loader state properly
+useEffect(() => {
+  if (loader && actualCmntArea) {
+    actualCmntArea.textContent = "Generating comment...";
+  }
+}, [loader, actualCmntArea]);
+
+// Get profile URL from storage
 useEffect(() => {
   chrome.storage.local.get('profileURl', (result) => {
     if (result.profileURl) {
       const extractedUrl = result.profileURl.split("/in/")[1]?.split("/")[0];
       setUrl(extractedUrl);
-      console.log('Profile URL set:', extractedUrl); // Debug log
     }
   });
 }, []);
+
+// Tries to listen directly on the comment button
 useEffect(() => {
+  if (!cmntBtn || !url) return;
+
   const handler = async (e) => {
-    if (e.target.closest('.LipIn-comment-container')) return;
-    const commentButton = e.target.closest(cmntBtn);
-    if (!commentButton) return;
-      if (isSaving.current) {
+    if (isSaving.current) {
       console.log('Already saving, skipping...');
       return;
     }
-    console.log('btn clicked');
-    const text = cmntArea?.textContent || cmntArea?.innerText || lastInsertedComment.current;
     
-    if (!text) {
-      console.log('No text to save');
+    console.log('✅ Comment button clicked - processing...');
+    
+    // Get current text from comment area (including any user edits)
+    const text = actualCmntArea?.textContent || 
+                actualCmntArea?.innerText || 
+                lastInsertedComment.current;
+    
+    console.log('📝 Text from comment area at click time:', text);
+    
+    if (!text || text.trim() === '' || text === 'Generating comment...') {
+      console.log('No valid text to save');
       return;
     }
     
-    if (!url) {
-      console.log('No profile URL available');
-      return;
-    }
-    isSaving.current = true; // Set flag
+    isSaving.current = true;
+    console.log('🔥 Saving to Firebase...');
 
     try {
-    const today = new Date();
+      const today = new Date();
       today.setHours(0, 0, 0, 0);
       const dateOnly = today.getTime();
-      console.log('Attempting to save to Firebase:', { url, text });
+      console.log(url,'profile slug');
       await addDoc(
-        collection(db, "comments", url,"items"),
+        collection(db, "comments", url, "items"),
         {
-          text,
+          text: text.trim(),
           createdAt: dateOnly,
-          source: "linkedin"
+          timestamp: new Date().toISOString()
         }
       );
-      console.log('Successfully saved to Firebase');
-            lastInsertedComment.current = '';
+      
+      console.log('🎉 Successfully saved to Firebase');
+      lastInsertedComment.current = '';
 
     } catch (error) {
-      console.error('Firebase save error:', error);
-     } finally {
-      // Reset flag after a short delay
+      console.error('❌ Firebase save error:', error);
+    } finally {
       setTimeout(() => {
         isSaving.current = false;
       }, 1000);
     }
-    
   };
 
-  document.addEventListener("click", handler);
-  return () => document.removeEventListener("click", handler);
-}, [url, db, cmntBtn]);
+  // Listen directly on the cmntBtn element
+  cmntBtn.addEventListener('click', handler);
+  return () => cmntBtn.removeEventListener('click', handler);
+}, [cmntBtn, url, db, actualCmntArea]);
 
-  useEffect(() => {
+// Backup: Event delegation to catch comment button clicks
+useEffect(() => {
+  if (!url) return;
+  
+  const handleDocumentClick = async (e) => {
+    const clickedElement = e.target.closest('button');
+    if (!clickedElement) return;
+    const dataViewName = clickedElement.getAttribute('data-view-name');
+    if (dataViewName === 'comment-post') {
+      console.log('🎯 Comment button clicked via delegation');
+      
+      // Check if this button is related to our post
+      const isInOurPost = postEl?.contains(clickedElement);
+      if (!isInOurPost) {
+        console.log('Button not in our post, ignoring');
+        return;
+      }
+      
+      if (isSaving.current) {
+        console.log('Already saving, skipping...');
+        return;
+      }
+      
+      // Get current text from comment area (including any user edits)
+      const text = actualCmntArea?.textContent || 
+                  actualCmntArea?.innerText || 
+                  lastInsertedComment.current;      
+      if (!text || text.trim() === '' || text === 'Generating comment...') {
+        console.log('❌ No valid text to save');
+        return;
+      }
+      
+      isSaving.current = true;
+      console.log('🔥 Saving to Firebase via delegation...');
+      
+      try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dateOnly = today.getTime();
         
-    if (aiCmnt && cmntArea && aiCmnt !== lastInsertedComment.current) {
-      // Method 1: Direct textContent (NO events fired)
+        await addDoc(
+          collection(db, "comments", url, "items"),
+          {
+            text: text.trim(),
+            createdAt: dateOnly,
+            timestamp: new Date().toISOString(),
+          }
+        );
+        
+        console.log('🎉 Successfully saved via delegation:', text.trim());
+        lastInsertedComment.current = '';
+        
+      } catch (error) {
+        console.error('❌ Delegation save error:', error);
+      } finally {
+        setTimeout(() => {
+          isSaving.current = false;
+        }, 1000);
+      }
+    }
+  };
+  
+  document.addEventListener('click', handleDocumentClick, true);
+  return () => document.removeEventListener('click', handleDocumentClick, true);
+}, [url, actualCmntArea, db, postEl]);
+
+// When comment text changes, insert into actual comment area
+  useEffect(() => {
+    if (aiCmnt && actualCmntArea && aiCmnt !== lastInsertedComment.current) {
       setLoader(false);
-      cmntArea.textContent = aiCmnt;
-
-      // Remember what we inserted
+      actualCmntArea.textContent = aiCmnt;
       lastInsertedComment.current = aiCmnt;
-
-      // Focus (safe)
-      cmntArea.focus();
-
-      // Move cursor to end (safe)
+      actualCmntArea.focus();
       try {
         const range = document.createRange();
         const selection = window.getSelection();
-        range.selectNodeContents(cmntArea);
+        range.selectNodeContents(actualCmntArea);
         range.collapse(false);
         selection.removeAllRanges();
         selection.addRange(range);
       } catch (e) {
         console.log('Could not move cursor:', e);
       }
-
-      // DO NOT dispatch any events - this causes auto-posting
-      // cmntArea.dispatchEvent(new Event('input', { bubbles: true })); // ❌ NO!
     }
+  }, [aiCmnt, actualCmntArea]);
 
-  }, [aiCmnt, cmntArea]);
-  const handleGenerateComment = () => {
-    console.log('clicked')
+  // Genrate comments based on the post but before that it takes 3sec time to find the comment button
+  const handleGenerateComment = (e) => {
+    e.preventDefault();
+    e.stopPropagation(); 
     setLoader(true);
-    const postContent = getPostDescription(postEl);
-
-    if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
-      chrome.runtime.sendMessage({
-        action: 'generateComment',
-        text: `${postContent}\n${userCmntPrompt}\n${tonePrompt}`
-      }, (res) => {
-        if (chrome.runtime.lastError) {
-          console.warn('chrome.runtime.lastError:', chrome.runtime.lastError);
-        }
-        setAiComnt(res.comments);
-        
-      });
-    } else {
-      console.error('No extension runtime available to send message.');
-    }
     setCmntTool(false);
-
+    
+    // First, wait 3 seconds to find the comment button and then generate the comment DOM element takes time
+    setTimeout(() => {
+      
+      let foundBtn = null;
+      // Strategy 1: Direct search in postEl
+      foundBtn = postEl?.querySelector('[data-view-name="comment-post"]');
+      console.log('Strategy 1 - Direct postEl search:', foundBtn);
+      
+      if (foundBtn) {
+        setCmntBtn(foundBtn);
+          const postContent = getPostDescription(postEl);
+        if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
+          chrome.runtime.sendMessage({
+            action: 'generateComment',
+            text: `${postContent}\n${userCmntPrompt}\n${tonePrompt}`
+          }, (res) => {
+            if (chrome.runtime.lastError) {
+              console.warn('chrome.runtime.lastError:', chrome.runtime.lastError);
+              setLoader(false);
+            } else {
+              if (res && res.comments) {
+                setAiComnt(res.comments);
+              } else {
+                setLoader(false);
+              }
+            }
+          });
+        } else {
+          setLoader(false);
+        }
+      } else {
+        console.log('❌ Comment button not found after 3 seconds');
+        setLoader(false);
+      }
+    }, 3000);
   };
+
+// Tone options and prompts
   const tonesList = [
-    { name: 'Formal', icon: <WorkOutlineIcon style={{ fontSize: '2rem', color: 'pink' }} />, prompt: 'Write a professional comment that acknowledges the key points made in the post. Use formal, polished language with a respectful and neutral tone. Structure your comment to recognize the main argument or achievement, then add a brief professional observation or insight. Avoid emojis and casual language. Keep it concise and business-appropriate.' },
-    { name: 'Appreciate', icon: <HandshakeIcon style={{ fontSize: '2rem', color: 'pink' }} />, prompt: 'Write a genuinely appreciative comment that highlights specific value from the post. Express sincere gratitude for the insight, effort, or perspective shared. Acknowledge what made the post valuable or impactful. Use warm, encouraging language that feels authentic—not generic praise. Focus purely on appreciation without adding suggestions or critique.' },
+    { name: 'Formal', 
+      icon: <WorkOutlineIcon style={{ fontSize: '2rem', color: 'pink' }} />,
+      prompt: `Goal: Establish professional credibility and demonstrate expertise
+              Rules:
+              Use professional language and industry terminology
+              Maintain respectful and courteous tone throughout
+              Avoid slang, emojis, and casual expressions
+              Structure comments with clear, complete sentences
+              Reference specific points from the post with precision
+              Must be factual and substantive, never superficial or generic
+              Keep length between 2-4 sentences (30-60 words)` 
+            },
+          { 
+      name: 'Appreciate', 
+      icon: <HandshakeIcon style={{ fontSize: '2rem', color: 'pink' }} />, 
+      prompt: `Goal: Express genuine gratitude and acknowledge the value provided
+                Rules:
+
+                Begin with sincere appreciation or acknowledgment
+                Highlight specific aspects that resonated with you
+                Share how the content impacted you personally
+                Express gratitude for their effort and contribution
+                Keep tone warm but authentic, avoid excessive flattery
+                Must be factual and substantive, never superficial or generic
+                Keep length between 2-4 sentences (30-60 words)`
+       },
     { 
   name: 'Add Value', 
   icon: <TipsAndUpdatesIcon style={{ fontSize: '2rem', color: 'pink' }} />, 
@@ -295,24 +433,52 @@ EXAMPLES OF BAD "ADD VALUE" COMMENTS (NEVER DO THIS):
 
 Write a comment that feels unmistakably personal — something only someone with this specific experience could write. No fluff, no filler, just real value.`
 },
-    { name: 'Curious', icon: <QuestionAnswerIcon style={{ fontSize: '2rem', color: 'pink' }} />, prompt: 'Write an engaged comment that shows genuine interest in learning more. Reference a specific point from the post that intrigued you, then ask a thoughtful, specific question to deepen your understanding or explore the topic further. Use a conversational, open-minded tone that invites dialogue. Your curiosity should feel authentic—like you genuinely want to know their perspective or experience on something specific they mentioned.' },
-    { name: 'Differ', icon: <SentimentNeutralIcon style={{ fontSize: '2rem', color: 'pink' }} />, prompt: 'Write a respectful comment that offers an alternative perspective or contrasting experience. Start by acknowledging the validity of their point, then share a different angle, counterexample, or "in my experience, I found..." statement. Frame it as adding to the discussion rather than contradicting. Use phrases like "Another perspective might be..." or "I\'ve seen different results when..." Keep the tone collaborative and curious, not argumentative. The goal is to enrich the conversation with diverse viewpoints.' },
+    { name: 'Curious', 
+      icon: <QuestionAnswerIcon style={{ fontSize: '2rem', color: 'pink' }} />, 
+      prompt: `Goal: Demonstrate genuine interest and invite deeper discussion
+              Rules:
+
+              Ask specific, thoughtful questions about the content
+              Show you engaged with the material through informed queries
+              Avoid questions that could be answered by reading the post
+              Express interest in learning more about particular aspects
+              Frame questions that encourage detailed responses
+              Must be factual and substantive, never superficial or generic
+              Keep length between 2-4 sentences (30-60 words)
+
+              ` },
+    { name: 'Differ', 
+      icon: <SentimentNeutralIcon style={{ fontSize: '2rem', color: 'pink' }} />, 
+    prompt: `
+    Goal: Respectfully present alternative viewpoints or share contrasting experiences
+    Rules:
+        
+    Acknowledge the validity of the original perspective first
+    Use phrases like "In my experience" or "From a different angle"
+    Present counterpoints with evidence or specific examples
+    Maintain respectful and constructive tone throughout
+    Avoid absolute statements or dismissive language
+    Invite dialogue rather than declaring who is right
+    Must be factual and substantive, never superficial or generic
+    Keep length between 2-4 sentences (30-60 words)
+    ` },
   ]
 
 
   const lipInLogo = chrome.runtime.getURL('customAssets/logo.png');
-  // We call the background via chrome.runtime.sendMessage directly from the click handler below.
-  return (<>
-    <div style={{ display: 'flex', width: '100%', justifyContent: 'end' }}>
+  return (
+  <div style={{ display: 'inline-block'}}>
       <button onClick={(e) => {
-        e.preventDefault();      // Prevent default button behavior
-        e.stopPropagation(); setCmntTool(!cmntTool)
-      }} className="LipIn-comment-post-button" style={{ background: 'transparent', boxShadow:'0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)' }}>
+        e.preventDefault();
+        e.stopPropagation(); 
+        console.log('Main LipIn button clicked, toggling panel');
+        setCmntBtn(postEl?.querySelector('[data-view-name="comment-post"]'))
+        setCmntTool(!cmntTool)
+      }} className="LipIn-comment-post-button" style={{ background: 'transparent', border: 'none', padding: '8px', cursor: 'pointer', boxShadow:'0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)' }}>
         <img src={lipInLogo} alt="LipIn Logo" style={{ width: '2rem', height: '2rem', marginLeft: '5px' }} />
       </button>
-    </div>
-    {cmntTool && <div className="LipIn-comment-container" style={{ position: 'absolute', display: 'flex', flexDirection: 'column', gap: '1rem', width: '500px', top: '40px', 
-        backgroundColor: theme === 'dark' ? '#1a1a1a' : '#ffffff', borderRadius: '10px', padding: '1rem', boxShadow: '0 4px 8px 0 rgba(255, 255, 255, 0.2), 0 6px 20px 0 rgba(255, 255, 255, 0.4)', zIndex: '1000' }}>
+    {cmntTool && <div className="LipIn-comment-container" style={{ position: 'absolute', display: 'flex', flexDirection: 'column', gap: '1rem', width: '500px', 
+        backgroundColor: theme === 'dark' ? '#1a1a1a' : '#ffffff', borderRadius: '20px', boxShadow: '0 4px 8px 0 rgba(255, 255, 255, 0.2), 0 6px 20px 0 rgba(255, 255, 255, 0.4)', zIndex: '1000' }}>
       <div style={{
         width: '100%',
         height: '50px',
@@ -320,7 +486,7 @@ Write a comment that feels unmistakably personal — something only someone with
         justifyContent: 'space-between',
         alignItems: 'center',
         coor: 'white',
-        padding: '10px'
+        paddingRight: '1rem'
       }}
       >
         <input type="text" onChange={(e) => {
@@ -349,7 +515,7 @@ Write a comment that feels unmistakably personal — something only someone with
         </button>
 
       </div>
-      {tones && <div className='LipIn-comment-tones' style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      {tones && <div className='LipIn-comment-tones'>
         {tonesList.map((tone, index) => {
           const isActive = activeToneIndex === index;
           return (
@@ -366,27 +532,10 @@ Write a comment that feels unmistakably personal — something only someone with
           )
         })}
       </div>}
-      {/* {aiCmnt && <div className='LipIn-comment-display' style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', padding: '1rem', gap: '1rem' }}>
-                <p>
-                    {aiCmnt}
-                </p>
-                <button
-                    onClick={() => {
-                        navigator.clipboard.writeText(aiCmnt).then(() => {
-                            setCoptAlrt(true);
-                            setTimeout(() => {
-                                setCoptAlrt(false)
-                            }, 4000)
-                        })
-                    }}
-                >
-                    {copyAlrt ? <DoneIcon fontSize='larger' style={{ fontSize: '2.5rem' }} color="success" /> : <ContentCopyIcon style={{ fontSize: '2.5rem' }} color='primary' />}
-                </button>
-
-            </div>} */}
     </div>}
-  </>
+  </div>
   );
 }
 
 export default Comment;
+

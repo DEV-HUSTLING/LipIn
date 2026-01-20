@@ -1,15 +1,17 @@
+/* POPUP-ONLY STYLES */
 @import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap');
 
-@import "tailwindcss";
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-    font-family: "Lato";
-
-
+/* Only apply to popup - use class selector instead of body */
+.popup-container {
+  /* background-color: #1B1F23; */
+  width: 85vw;
+  padding: 4rem;
+  color: white;
+  font-family: "Lato";
+  padding: 1rem;
+  margin: 0;
 }
+
 .ext-title-card{
   text-align: left;
 }
@@ -29,8 +31,8 @@
   {
     padding: 10px;
     margin-bottom: 10px;
-    border: 1px solid rgb(228, 90, 146);
-    box-shadow: rgba(242, 107, 249, 0.65) 0px 4px 8px 0px, rgba(242, 107, 249, 0.65) 0px 6px 20px 0px;
+    /* border: 1px solid rgb(228, 90, 146);
+    box-shadow: rgba(242, 107, 249, 0.65) 0px 4px 8px 0px, rgba(242, 107, 249, 0.65) 0px 6px 20px 0px; */
     border-radius: 8px;
     font-family: Lato !important;
     font-weight: 400;
@@ -54,12 +56,12 @@
   font-weight:500;
 }
 .commontTracker h3{
-  font-size:2rem !important;
     font-family: "Lato" !important;
   font-weight: bold;
 }
 .commentDate span{
-  font-size: 2rem;
+  font-size: 24px;
+  color: black;
 }
 .Dark_DatePicker span{
   color: white;
@@ -73,8 +75,12 @@
 .Light_DatePicker button{
   color: black;
 }
-.commentDate{
-  width: 100% !important;
+.MuiPickersSectionList-root.MuiPickersInputBase-sectionsContainer{
+  width: unset !important;
+  flex-grow: unset !important;
+}
+.MuiPickersTextField-root {
+    min-width: unset !important;
 }
 .commentDate fieldset{
   border: none !important;

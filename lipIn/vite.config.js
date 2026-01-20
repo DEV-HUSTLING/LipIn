@@ -33,7 +33,8 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: false,
       rollupOptions: {
         input: {
-          popup: resolve(__dirname, 'index.html')
+          popup: resolve(__dirname, 'index.html'),
+          landingPage: resolve(__dirname, 'landingPage.html')
         }
       }
     }
