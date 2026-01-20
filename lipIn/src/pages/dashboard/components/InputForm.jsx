@@ -95,7 +95,7 @@ const submitForm = () => {
     }
 
     
-    axios.post('http://127.0.0.1:8000/personalInfo', formData, {
+    axios.post('https://lipin.onrender.com/personalInfo', formData, {
         headers: {
             'Content-Type': 'multipart/form-data'
         }

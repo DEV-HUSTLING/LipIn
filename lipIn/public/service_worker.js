@@ -36,13 +36,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     //   console.error('service_worker error responding to profile message', err);
     // }
   }
-  if (message && message.action === 'askAIChat') {
-    console.log('askAIChat message received:', message);
-    handleAskAIChats(message)
-      .then(result => sendResponse(result))
-      .catch(err => sendResponse({success: false, error: err.toString()}));
-    return true;
-  }
  if (message && message.action === 'triggerGetProfileURL') {
     // Get the active tab and send message to content script
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -91,7 +84,7 @@ async function handleGenerateComment(message) {
   console.log('generateComment prompt:', prompt);
   
   // const response = await fetch('https://lipin.onrender.com/AIcomments', {
-  const response = await fetch('http://127.0.0.1:8000/AIcomments', {
+  const response = await fetch('https://lipin.onrender.com/AIcomments', {
 
     method: 'POST',
     headers: {
@@ -108,46 +101,4 @@ async function handleGenerateComment(message) {
   
   const data = await response.json();
   return { success: true, comments: data.comment };
-}
-
-async function handleAskAIChats(message){
-  try {
-    // Validate input
-    if (!message.text || typeof message.text !== 'string') {
-      console.error('Invalid message.text:', message.text);
-      throw new Error('Invalid or missing text field in message');
-    }
-    
-    // Extract only the text and history, not the whole message object
-    const textContent = message.text;
-    const historyContent = Array.isArray(message.history) ? message.history : [];
-    
-    const requestBody = {
-      message: textContent,  // Send only the text string
-      history: historyContent  // Send only the history array
-    };
-    
-    console.log('Sending request body to backend:', requestBody); // Debug log
-    
-    const response = await fetch('http://127.0.0.1:8000/askAIChats',{
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Backend error response:', response.status, errorText);
-      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-    }
-    
-    const data = await response.json();
-    console.log('Backend response:', data); // Debug log
-    return { success: true, response: data.response };
-  } catch (error) {
-    console.error('Error in handleAskAIChats:', error);
-    throw error;
-  }
 }

@@ -21,7 +21,7 @@ function AskAi({aiValue,setAskAI,profileId}) {
         setIsLoading(true);
         setInputValue('');
         
-        axios.post('http://127.0.0.1:8000/askAIChats', {
+        axios.post('https://lipin.onrender.com/askAIChats', {
             message: inputValue,  
             history: userMessageHistory,
             profile_url: profileId

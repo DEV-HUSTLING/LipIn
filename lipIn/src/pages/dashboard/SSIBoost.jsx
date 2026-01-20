@@ -37,7 +37,7 @@ const SSIBoost = () => {
             if (result.profileURl) {
                 const extractedUrl = result.profileURl;
                 setProfileId( extractedUrl.split("/in/")[1]?.split("/")[0])
-                axios.get(`http://127.0.0.1:8000/profileAnalysis`, {
+                axios.get(`https://lipin.onrender.com/profileAnalysis`, {
                     params: {
                         profile_url: extractedUrl.split("/in/")[1]?.split("/")[0]
                     }
@@ -55,7 +55,7 @@ const SSIBoost = () => {
         setNiche(selectedNiche);
         setLoading(true);
         console.log("Selected Niche:", selectedNiche);
-        axios.post(`http://127.0.0.1:8000/nicheRecommendations`, {
+        axios.post(`https://lipin.onrender.com/nicheRecommendations`, {
                 profile_url: profileId,
                 niche: selectedNiche
         }, {
