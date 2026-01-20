@@ -1,4 +1,9 @@
+<<<<<<< HEAD
 from fastapi import FastAPI, HTTPException, status, File, UploadFile, Form, HTTPException, Query
+=======
+from typing import Optional
+from fastapi import FastAPI, HTTPException
+>>>>>>> main
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
@@ -16,13 +21,18 @@ from prompts import Comments, SSIRecommendations, SSIImageProcessing, NicheRecom
 from helper import Image_Processor,Clean_JSON, File_to_Base64
 load_dotenv()
 app = FastAPI()
+<<<<<<< HEAD
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 logger = logging.getLogger(__name__)
+=======
+client = OpenAI()
+>>>>>>> main
 
 fireCred = credentials.Certificate(os.getenv("FIREBASE_API"))
 firebase_admin.initialize_app(fireCred)
 db = firestore.client()
 class CommentsBody(BaseModel):
+    
     post: str
     prompt: str | None = None #Optional field with a default value of None
     tone: str | None = None #Optional field with a default value of None
@@ -332,6 +342,12 @@ def get_ai_comments(body: CommentsBody):
             temperature=0.7,
         )
         comment = response.choices[0].message.content.strip()
+<<<<<<< HEAD
+=======
+        print("prompt:", prompt)
+        print("comment:", comment)
+
+>>>>>>> main
         return {"comment": comment}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

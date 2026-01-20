@@ -110,6 +110,14 @@ function CommentTracker() {
         setPeriod.setHours(0, 0, 0, 0);
         const finalDate = setPeriod.getTime();
 
+<<<<<<< HEAD
+=======
+        // monthly time
+        const baseTime = today.getTime(); 
+        const month = new Date(baseTime - 30 * 24 * 60 * 60 * 1000);
+        month.setHours(0, 0, 0, 0);
+        const monthDate = month.getTime();
+>>>>>>> main
         try {
             console.log("Fetching final counts");
             const commentRef = collection(db, "comments", profileId, "items");
