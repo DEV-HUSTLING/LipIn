@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, status, File, UploadFile, Form, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
@@ -333,12 +333,9 @@ def get_ai_comments(body: CommentsBody):
             temperature=0.7,
         )
         comment = response.choices[0].message.content.strip()
-<<<<<<< HEAD
-=======
         print("prompt:", prompt)
         print("comment:", comment)
 
->>>>>>> main
         return {"comment": comment}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
