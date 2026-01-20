@@ -1,3 +1,341 @@
+class NicheSpecificRecommendation:
+    def __init__(self, career,linkedin_headline,linkedin_about,current_postion,skills,topics, work_experience,niche):
+        self.career = career,
+        self.work_experience = work_experience
+        self.linkedin_headline = linkedin_headline
+        self.linkedin_about = linkedin_about
+        self.current_postion = current_postion
+        self.skills = skills
+        self.topics = topics
+        self.niche = niche
+    
+    def generate_ssi_recommendations(self):
+        return [
+            {
+                "role": "system",
+                "content": f"""
+                Goal: Generate niche-specific SSI (Social Selling Index) improvement recommendations tailored to the {self.niche} professional niche. 
+                
+                Context: You are advising someone who wants to establish themselves in the {self.niche} field on LinkedIn. Use their background information to provide targeted SSI improvement strategies that align with this specific niche.
+
+                SSI Component Analysis Framework for {self.niche}:
+
+                1. ESTABLISH YOUR PROFESSIONAL BRAND (for {self.niche})
+                   Focus Areas:
+                   - Profile positioning specifically for {self.niche} audience
+                   - Content themes that establish {self.niche} expertise
+                   - Keyword optimization for {self.niche} searchability
+                   - Professional imagery and messaging aligned with {self.niche} standards
+                   - Featured section showcasing {self.niche}-relevant work
+
+                2. FIND THE RIGHT PEOPLE (in {self.niche})
+                   Focus Areas:
+                   - Target audience identification within {self.niche} ecosystem
+                   - Search strategies for {self.niche} professionals, decision-makers, and prospects
+                   - Industry-specific networking approaches for {self.niche}
+                   - Connection strategies with {self.niche} thought leaders and peers
+                   - Leveraging {self.niche} communities and groups
+
+                3. ENGAGE WITH INSIGHTS (in {self.niche})
+                   Focus Areas:
+                   - Content consumption strategy for {self.niche} trends and insights
+                   - Comment strategies that demonstrate {self.niche} expertise
+                   - Sharing and amplifying {self.niche}-relevant content
+                   - Timing optimization for {self.niche} audience activity
+                   - Value-driven engagement that positions user as {self.niche} expert
+
+                4. BUILD STRONG RELATIONSHIPS (in {self.niche})
+                   Focus Areas:
+                   - Follow-up strategies specific to {self.niche} professionals
+                   - Relationship nurturing approaches that work in {self.niche} culture
+                   - Value delivery methods relevant to {self.niche} audience
+                   - Long-term relationship building within {self.niche} ecosystem
+                   - Collaboration and partnership opportunities in {self.niche}
+
+                Instructions:
+                - Provide 3-4 specific, actionable recommendations per SSI component
+                - Tailor each recommendation to the {self.niche} field specifically
+                - Use the user's background information to make recommendations relevant
+                - Focus on practical steps they can take immediately
+                - Include industry-specific strategies and tactics
+                - Reference current trends and best practices in {self.niche}
+
+                Output Format:
+                Return ONLY a JSON array with this exact structure:
+
+                [
+                  {{
+                    "component": "Establish your professional brand",
+                    "niche_focus": "{self.niche}",
+                    "recommendations": [
+                      "Niche-specific actionable recommendation 1",
+                      "Niche-specific actionable recommendation 2",
+                      "Niche-specific actionable recommendation 3",
+                      "Niche-specific actionable recommendation 4"
+                    ]
+                  }},
+                  {{
+                    "component": "Find the right people",
+                    "niche_focus": "{self.niche}",
+                    "recommendations": [
+                      "Niche-specific actionable recommendation 1",
+                      "Niche-specific actionable recommendation 2", 
+                      "Niche-specific actionable recommendation 3",
+                      "Niche-specific actionable recommendation 4"
+                    ]
+                  }},
+                  {{
+                    "component": "Engage with insights",
+                    "niche_focus": "{self.niche}",
+                    "recommendations": [
+                      "Niche-specific actionable recommendation 1",
+                      "Niche-specific actionable recommendation 2",
+                      "Niche-specific actionable recommendation 3",
+                      "Niche-specific actionable recommendation 4"
+                    ]
+                  }},
+                  {{
+                    "component": "Build strong relationships", 
+                    "niche_focus": "{self.niche}",
+                    "recommendations": [
+                      "Niche-specific actionable recommendation 1",
+                      "Niche-specific actionable recommendation 2",
+                      "Niche-specific actionable recommendation 3",
+                      "Niche-specific actionable recommendation 4"
+                    ]
+                  }}
+                ]
+
+                Important: 
+                - Each recommendation must be specifically tailored to the {self.niche} field
+                - Include concrete actions, not generic advice
+                - Reference industry-specific tools, platforms, or strategies when relevant
+                - Make recommendations achievable based on the user's current background
+                - Output ONLY the JSON array, no additional text or explanations
+                """
+            },
+            {
+                "role": "user", 
+                "content": f"""
+                Generate niche-specific SSI recommendations for me based on my profile and target niche.
+
+                User Profile Information:
+                - Target Niche: {self.niche}
+                - LinkedIn Headline: {self.linkedin_headline}
+                - About Section: {self.linkedin_about}
+                - Current Position: {self.current_postion}
+                - Work Experience: {self.work_experience}
+                - Skills: {self.skills}
+                - Topics of Interest: {self.topics}
+                - Career Goals: {self.career if self.career else "Not specified"}
+
+                Please provide 4 specific SSI improvement recommendations for each of the 4 LinkedIn SSI components, tailored specifically to help me establish myself in the {self.niche} field.
+
+                Focus on actionable steps I can take immediately, using industry-specific strategies that align with {self.niche} best practices and current trends.
+                """
+            }
+        ]
+    
+    def generate_niche_prompt(self):
+        return[
+            {
+                "role": "system",
+                "content": """
+                You are a LinkedIn professional brand strategist. Your mission is to analyze user inputs and recommend high-level professional niches that align with industry-standard market positions and career growth opportunities.
+
+                ## INPUT ANALYSIS PRIORITIES
+
+                You will receive these key inputs:
+                1. **Current Professional Status**: LinkedIn headline, about section, current position, work experience
+                2. **Skill Portfolio**: Technical and soft skills they possess
+                3. **Interest Areas**: Topics they're passionate about and want to explore
+                4. **Career Aspirations**: Where they want to go professionally
+
+                ## NICHE DEVELOPMENT STRATEGY
+
+                ### Step 1: Professional Identity Mapping
+                - Identify their primary professional domain from work experience
+                - Map their skills to established industry roles and markets
+                - Assess their experience level and career trajectory
+
+                ### Step 2: Industry-Standard Role Alignment
+                Match their background to recognized professional categories such as:
+                - **Technology**: Data Engineer, Software Developer, DevOps Engineer, AI/ML Engineer, Cybersecurity Specialist
+                - **Business**: Management Consultant, Finance Consultant, Business Analyst, Product Manager, Operations Manager
+                - **Marketing & Sales**: Digital Marketing Specialist, Growth Marketer, Sales Manager, Customer Success Manager
+                - **Finance**: Financial Analyst, Investment Advisor, Risk Manager, Corporate Finance, Financial Planner
+                - **Healthcare**: Healthcare Administrator, Clinical Research, Health Tech Specialist, Medical Device Sales
+                - **Education**: Training & Development, Educational Technology, Academic Administration, Learning & Development
+
+                ### Step 3: Market Position Validation
+                Evaluate each potential niche on:
+                - **Industry Demand**: Current market need for this role (40% weight)
+                - **Experience Fit**: How well their background aligns (30% weight)
+                - **Growth Potential**: Career advancement opportunities (20% weight)
+                - **Passion Alignment**: Interest in the field (10% weight)
+
+                ## NICHE RECOMMENDATIONS APPROACH
+
+                Focus on **high-level professional categories** that represent:
+                - Established market positions
+                - Clear career progression paths
+                - Industry-recognized roles
+                - Broad professional markets
+
+                Examples of RECOMMENDED niches:
+                ✅ "Data Engineer"
+                ✅ "Finance Consultant" 
+                ✅ "Digital Marketing Specialist"
+                ✅ "Product Manager"
+                ✅ "Management Consultant"
+                ✅ "Software Developer"
+                ✅ "Business Analyst"
+
+                These are industry-standard roles that:
+                - Have clear market recognition
+                - Offer established career paths
+                - Provide broad professional opportunities
+                - Allow for specialization within the field
+
+                ## LINKEDIN BRAND GROWTH STRATEGY
+
+                For each recommended niche, provide:
+
+                ### Immediate Brand Positioning (0-3 months)
+                - Profile optimization strategies
+                - Content themes that establish expertise
+                - Key messaging and value proposition
+                - Target audience identification
+
+                ### Authority Building Path (3-12 months)  
+                - Content creation roadmap
+                - Thought leadership topics
+                - Network expansion strategy
+                - Proof points to develop
+
+                ### Long-term Brand Development (12+ months)
+                - Speaking opportunities and visibility
+                - Industry recognition goals
+                - Community building approaches
+                - Partnership and collaboration strategies
+
+                ## OUTPUT REQUIREMENTS
+
+                Provide 5 ranked niche recommendations in JSON format only. Each niche must include:
+
+                1. **Niche Definition**: Professional role/title name
+                2. **Confidence Score**: Overall fit score (0-100)
+                3. **One-Line Pitch**: Brief value proposition
+                4. **Market Analysis**: Target audience and opportunity
+                5. **Key Strengths**: What they already have going for them
+                6. **Priority Gap**: Most important area to develop
+                7. **Timeline**: Months to establish credibility
+
+                ## CRITICAL SUCCESS FACTORS
+
+                1. **Industry-Standard Focus**: Recommend recognized professional roles
+                2. **Market Demand**: Only suggest roles with strong job market demand
+                3. **Experience Alignment**: Build on their current background
+                4. **Realistic Timelines**: Set achievable expectations
+                5. **Concise Output**: Keep recommendations brief and actionable
+
+                Output ONLY valid JSON with no additional text, formatting, or explanations.
+                """
+            },
+            {
+                "role": "user",
+                "content": 
+                 f"""
+                 Analyze my profile and recommend 5 LinkedIn niches for me.
+                    ## MY LINKEDIN PROFILE
+
+                    **Headline:**
+                    {self.linkedin_headline}
+
+                    **About Section:**
+                    {self.linkedin_about}
+
+                    **Current Position:**
+                    {self.current_postion}
+
+                    **Work Experience:**
+                    {self.work_experience}
+
+                    **Skills:**
+                    {self.skills}
+
+                    ## MY INTERESTS
+
+                    **Topics I'm passionate about:**
+                    {self.topics}
+                    **My passionate niche:**
+                    {self.niche}
+
+
+                    ## MY CAREER GOALS
+
+                    **Target role I'm aiming for:**
+                    {self.career if self.career else "Not specified"}
+
+                    ---
+                    Output exactly 5 niche recommendations in this JSON structure:
+                    {{
+                      "recommendedNiches": [
+                        {{
+                          "rank": 1,
+                          "niche": "Professional Role Title",
+                          "confidenceScore": 85,
+                          "oneLinePitch": "Brief value proposition",
+                          "targetAudience": "Who they serve",
+                          "keyStrengths": ["strength1", "strength2", "strength3"],
+                          "priorityGap": "Most important area to develop",
+                          "timelineMonths": 6
+                        }},
+                        {{
+                          "rank": 2,
+                          "niche": "Professional Role Title", 
+                          "confidenceScore": 80,
+                          "oneLinePitch": "Brief value proposition",
+                          "targetAudience": "Who they serve",
+                          "keyStrengths": ["strength1", "strength2", "strength3"],
+                          "priorityGap": "Most important area to develop",
+                          "timelineMonths": 8
+                        }},
+                        {{
+                          "rank": 3,
+                          "niche": "Professional Role Title",
+                          "confidenceScore": 75,
+                          "oneLinePitch": "Brief value proposition", 
+                          "targetAudience": "Who they serve",
+                          "keyStrengths": ["strength1", "strength2", "strength3"],
+                          "priorityGap": "Most important area to develop",
+                          "timelineMonths": 10
+                        }},
+                        {{
+                          "rank": 4,
+                          "niche": "Professional Role Title",
+                          "confidenceScore": 70,
+                          "oneLinePitch": "Brief value proposition",
+                          "targetAudience": "Who they serve", 
+                          "keyStrengths": ["strength1", "strength2", "strength3"],
+                          "priorityGap": "Most important area to develop",
+                          "timelineMonths": 12
+                        }},
+                        {{
+                          "rank": 5,
+                          "niche": "Professional Role Title",
+                          "confidenceScore": 65,
+                          "oneLinePitch": "Brief value proposition",
+                          "targetAudience": "Who they serve",
+                          "keyStrengths": ["strength1", "strength2", "strength3"], 
+                          "priorityGap": "Most important area to develop",
+                          "timelineMonths": 15
+                        }}
+                      ]
+                    }}
+                     """}
+            ]
+
 class SSIImageProcessing:
     def __init__(self, image_file):
         self.image_file = image_file
@@ -390,6 +728,7 @@ class SSIRecommendations:
                             Important: Provide 3-5 recommendations per component. Each recommendation should be specific, actionable, and directly address the score deficiency identified through the analysis framework above.
                             
                 """
+
 class Comments:
     def __init__(self, prompt, persona, tone, post, language):
         self.prompt = prompt

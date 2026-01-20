@@ -12,7 +12,7 @@ from firebase_admin import credentials, firestore, auth
 from typing import List, Optional
 import json
 import logging
-from prompts import Comments, SSIRecommendations, SSIImageProcessing, NicheRecommendation
+from prompts import Comments, SSIRecommendations, SSIImageProcessing, NicheRecommendation,NicheSpecificRecommendation
 from helper import Image_Processor,Clean_JSON, File_to_Base64
 load_dotenv()
 app = FastAPI()
@@ -31,12 +31,18 @@ class CommentsBody(BaseModel):
 
 class profileLink(BaseModel):
     profile_url: str
+class nicheRecommend(BaseModel):
+    profile_url: str
+    niche: str
 class PostBody(BaseModel):
     userReq: str
     # prompt: str
 class GoogleSignInRequest(BaseModel):
     profileURL: str
-
+class AskAIChat(BaseModel):
+    message: str
+    history: List[str] = []
+    profile_url: Optional[str] = None
 class GoogleSignInResponse(BaseModel):
     message: str
 origins = [
@@ -377,6 +383,167 @@ def get_ai_postsContent(body: PostBody):
         return {"posts": posts}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/askAIChats")
+def get_ai_postsContent(body:AskAIChat ):
+    userMsg = body.message
+    history = body.history
+    profile_url = body.profile_url
+    print('user message:', userMsg)
+    print('conversation history:', history)
+    print('profile_url:', profile_url)
+    
+    # Initialize variables with default values
+    headline = ""
+    currentExp = ""
+    pastExp = ""
+    about = ""
+    topics = []
+    skills = []
+    career = ""
+    if profile_url:
+        try:
+            documents = []
+            doc_ref = (
+                db.collection("users")
+                .document(profile_url.strip())
+                .collection("personalInfo")
+                .stream()
+            )
+            
+            for d in doc_ref:
+                documents.append(d.to_dict())
+            
+            # Extract user information if documents exist
+            for doc in documents:
+                headline = doc.get("headline", "")
+                currentExp = doc.get("currentExp", "")
+                pastExp = doc.get("pastExperience", "")
+                about = doc.get("userDescription", "")
+                career = doc.get("careerVision", "")
+                topic_files = doc.get("topicsFiles", [])
+                if topic_files:
+                    for topic in topic_files:
+                        topics.append(topic)
+                skills_files = doc.get("skillsFiles", [])
+                if skills_files:
+                    for skill in skills_files:
+                        skills.append(skill)
+        except Exception as e:
+            print(f"Error fetching user data: {e}")    
+    try:
+        # Build conversation messages with personalized system prompt
+        system_content = f"""
+        Role: You are a LinkedIn brand Content Creator. 
+        Task: Assist users based on their request to improve their LinkedIn presence. Below is the background information of the user to help you provide better responses.
+        
+        Background Information of user:
+        LinkedIn Headline: {headline}
+        Current Experience: {currentExp}
+        Past Experience: {pastExp}
+        About: {about}
+        User's topics of interest: {', '.join(topics)}
+        User's skills: {', '.join(skills)}
+        User's career vision: {career}
+        
+        Guidelines:
+        1. Use the background information to tailor your responses to the user's professional profile and aspirations.
+        2. Ensure that your responses align with LinkedIn's professional standards and best practices.
+        3. Provide actionable advice that the user can implement to enhance their LinkedIn presence.
+        4. Take the user background information into account while responding to the user's requests.
+        5. Act as if you have user's personality, preferences, and style in mind while responding.
+        """
+        
+        messages = [{"role": "system", "content": system_content}]
+        
+        # Add conversation history
+        for i, msg in enumerate(history):
+            if i % 2 == 0:  # Even indices are user messages
+                messages.append({"role": "user", "content": msg})
+            else:  # Odd indices are assistant responses
+                messages.append({"role": "assistant", "content": msg})
+        
+        # Add current user message
+        messages.append({"role": "user", "content": userMsg})
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            max_tokens=1000,
+            n=1,
+            stop=None,
+            temperature=0.7,
+        )
+        aiResponse = response.choices[0].message.content.strip()
+        print(aiResponse)
+        return {"response": aiResponse}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/nicheRecommendations")
+def get_niche_recommendations(
+    body: nicheRecommend
+):
+    try:
+        documents = []
+        doc_ref = (
+            db.collection("users")
+            .document(body.profile_url)
+            .collection("personalInfo")
+            .stream()
+        )
+        
+        for d in doc_ref:
+            documents.append(d.to_dict())
+        
+        # Extract user information if documents exist
+        for doc in documents:
+            headline = doc.get("headline", "")
+            currentExp = doc.get("currentExp", "")
+            pastExp = doc.get("pastExperience", "")
+            about = doc.get("userDescription", "")
+            career = doc.get("careerVision", "")
+            topic_files = doc.get("topicsFiles", [])
+            topics=[]
+            if topic_files:
+                for topic in topic_files:
+                    topics.append(topic)
+            skills_files = doc.get("skillsFiles", [])
+            skills = []
+            if skills_files:
+                for skill in skills_files:
+                    skills.append(skill)
+        
+        # Generate niche-specific SSI recommendations
+        niche_analysis_prompt = NicheSpecificRecommendation(career,headline,about,currentExp,skills,topics, pastExp, body.niche)
+        niche_analysis = client.chat.completions.create(
+            model = "gpt-4o-mini",
+            messages = niche_analysis_prompt.generate_ssi_recommendations(),
+            max_tokens = 800
+        )
+        niche_recomendation_cleaner = Clean_JSON(niche_analysis.choices[0].message.content)
+        cleaned_niche_analysis = niche_recomendation_cleaner.clean_json_response() 
+        try:
+            # Parse niche recommendations data
+            recommendations_data = json.loads(cleaned_niche_analysis)
+        except json.JSONDecodeError as e:
+            print(f"Error parsing niche recommendations: {e}")
+            print(f"Raw niche recommendations response: {cleaned_niche_analysis}")
+            # Return error with raw response for debugging
+            return {
+                "success": False,
+                "message": "Failed to parse niche recommendations",
+                "error": str(e),
+                "raw_niche_recommendations_response": cleaned_niche_analysis
+            }
+        
+        return {"success": True, "message": "Niche recommendations generated successfully", "data": recommendations_data}
+    
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(500, str(e))
 
 # @app.post("/AIprofile_scrapper")
 # def get_ai_profile_scrapper(body: profileLink):
