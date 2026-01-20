@@ -22,7 +22,7 @@ function Home() {
         try {
             const response = await authAPI.googleSignIn(profileId.split("/in/")[1]?.split("/")[0])
             if(response.message === "existing_user"){
-                navigate(`/dashboard/${profileId.split("/in/")[1]?.split("/")[0]}`)
+                navigate(`/dashboard/${profileId.split("/in/")[1]?.split("/")[0]}/ssi-boost`)
 
             }
             else{

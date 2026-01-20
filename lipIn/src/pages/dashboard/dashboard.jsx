@@ -63,7 +63,7 @@ export default function Dashboard() {
          <img src={homeImg} width={"30px"} height={'30px'}/>
          <p>Home</p>
         </Link>
-        <Link to={`ssi-boost`} className={location.pathname===`/dashboard/${currentProfileId}/ssi-boost`?'dashboard_link_active':''} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+        <Link to={`/ssi-boost`} className={location.pathname===`/dashboard/${currentProfileId}/ssi-boost`?'dashboard_link_active':''} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
         <img src={SSIboost} width={"30px"} height={'30px'}/>
          <p>SSI Boost</p>
         </Link>
@@ -72,7 +72,9 @@ export default function Dashboard() {
       <div className='Container'>
       <div>
         <Routes>
-          <Route index element={<SSIBoost />} />
+          <Route index element={<Dashboard /> } />
+          <Route path="/ssi-boost" element={<SSIBoost />} />
+          
         </Routes>
       </div>
     </div>
