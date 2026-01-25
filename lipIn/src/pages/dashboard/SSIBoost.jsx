@@ -8,48 +8,53 @@ import TableRow from '@mui/material/TableRow';
 import Paper from '@mui/material/Paper';
 import axios from 'axios';
 import AskAi from './components/AskAi';
-import LoadingScreen from './components/LoadingScreen';
+import LoadingScreen from './LoadingScreen';
 
 const SSIBoost = () => {
     const [profileId, setProfileId] = useState('')
-    const [ssidata, setSsidata] = useState([])
+    const [ssidata, setSsidata] = useState(null)
     const [aiValue, setAiValue] = useState('')
     const [askAI, setAskAI] = useState(false)
     const [niche, setNiche] = useState('')
     const [nicheRecom, setNicheRecom] = useState([])
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true)
     function createData(name, value) {
         return { name, value };
     }
     useEffect(()=>{
         console.log("AI Value changed:", aiValue);
     },[aiValue])
-    const rows = ssidata.data?.ssi_data?.Components ?
+    const rows = ssidata?.data?.ssi_data?.Components ?
         Object.entries(ssidata.data.ssi_data.Components).map(([key, value]) => {
             console.log(key, value)
             return createData(key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), value)
         }
         )
         : []
-
-    useEffect(() => {
+  useEffect(() => {
         chrome.storage.local.get('profileURl', (result) => {
             if (result.profileURl) {
                 const extractedUrl = result.profileURl;
-                setProfileId( extractedUrl.split("/in/")[1]?.split("/")[0])
+                const extractedProfileId = extractedUrl.split("/in/")[1]?.split("/")[0]
+                setProfileId(extractedProfileId)
+                
                 axios.get(`https://lipin.onrender.com/profileAnalysis`, {
                     params: {
-                        profile_url: extractedUrl.split("/in/")[1]?.split("/")[0]
+                        profile_url: extractedProfileId
                     }
                 }).then((res) => {
-                    console.log(res.data)
                     setSsidata(res.data)
+                    setLoading(false)
                 }).catch((err) => {
-                    console.log(err)
+                    console.log('Error loading profile analysis:', err)
+
                 })
+            } else {
+                setLoading(false)
             }
         });
     }, [])
+    // Remove the useEffect that was loading data, since LoadingScreen will handle it
     const handleNicheSelection = (e) => {
         const selectedNiche = e.currentTarget.querySelector('h4').innerText;
         setNiche(selectedNiche);
@@ -71,8 +76,11 @@ const SSIBoost = () => {
     }
     return (
         <div>
-        {ssidata?.data?.ssi_data?
-        <div>
+        {loading ? 
+            <LoadingScreen />
+            :
+            ssidata?.data?.ssi_data ?
+            <div>
             <div className="ssi_section" style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
                 {ssidata.data?.ssi_data?.SSI_Score ? <div style={{
                     width: '23%',
@@ -189,7 +197,9 @@ const SSIBoost = () => {
             {askAI&&<AskAi setAskAI={setAskAI} aiValue={aiValue} profileId={profileId}/>}      
              </div>
             :
-                <LoadingScreen />
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                    <h3>No profile data available</h3>
+                </div>
             }                 
         </div>
     )

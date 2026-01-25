@@ -8,6 +8,8 @@ import Home from './Home';
 import {authAPI} from '../../auth/authAPI';
 import homeImg from '../../../public/customAssets/home.png';
 import SSIboost from '../../../public/customAssets/SSIBoost.png';
+import PostGen from './PostGen';
+import LoadingScreen from './LoadingScreen';
 
 export default function Dashboard() {
   const { profileId } = useParams();
@@ -57,15 +59,19 @@ export default function Dashboard() {
       boxSizing:'border-box',
       gap:'2rem'
       }}>
-        <h3 style={{ fontSize:'3rem !important'}}><span style={{ color: 'black' }}>Lip</span><span style={{ color: '#F4287B', fontWeight: 'bold' }}>In</span></h3>
+        <h3 style={{ fontSize:'3rem !important'}}><span style={{ color: 'black', fontWeight:'normal' }}>Lip</span><span style={{ color: '#F4287B', fontWeight: 'bold' }}>In</span></h3>
         
         <Link to={`/dashboard/${currentProfileId}`} className={location.pathname===`/dashboard/${currentProfileId}`?'dashboard_link_active':''} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
          <img src={homeImg} width={"30px"} height={'30px'}/>
          <p>Home</p>
         </Link>
-        <Link to={`/ssi-boost`} className={location.pathname===`/dashboard/${currentProfileId}/ssi-boost`?'dashboard_link_active':''} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+        <Link to={`/dashboard/${currentProfileId}/analytics`} className={location.pathname===`/dashboard/${currentProfileId}/analytics`?'dashboard_link_active':''} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
         <img src={SSIboost} width={"30px"} height={'30px'}/>
-         <p>SSI Boost</p>
+         <p>Analytics</p>
+        </Link>
+        <Link to={`/dashboard/${currentProfileId}/postGen`} className={location.pathname===`/dashboard/${currentProfileId}/postGen`?'dashboard_link_active':''} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+        <img src={SSIboost} width={"30px"} height={'30px'}/>
+         <p>Post Generation</p>
         </Link>
 
       </nav>
@@ -73,8 +79,8 @@ export default function Dashboard() {
       <div>
         <Routes>
           <Route index element={<Dashboard /> } />
-          <Route path="/ssi-boost" element={<SSIBoost />} />
-          
+          <Route path="/analytics" element={<SSIBoost />} />
+          <Route path="/postGen" element={<PostGen />} />
         </Routes>
       </div>
     </div>

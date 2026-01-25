@@ -7,9 +7,7 @@ body {
 button{
     cursor: pointer;
 }
-.dashboard_container nav p{
-    font-size: 1rem;
-}
+
 .dashboard_container nav a{
     color: black;
     text-decoration: none;
