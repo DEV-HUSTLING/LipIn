@@ -18,6 +18,13 @@ const SSIBoost = () => {
     const [niche, setNiche] = useState('')
     const [nicheRecom, setNicheRecom] = useState([])
     const [loading, setLoading] = useState(true)
+
+    // Callback function to handle when data is loaded from LoadingScreen
+    const handleDataLoaded = (data, profileIdFromLoader) => {
+        setSsidata(data)
+        setProfileId(profileIdFromLoader)
+        setLoading(false)
+    }
     function createData(name, value) {
         return { name, value };
     }

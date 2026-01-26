@@ -1,3 +1,48 @@
+class PostGenPrompt:
+    def __init__(self, attachments, tone, language):
+        self.tone = tone
+        self.language = language
+        self.attachments = attachments
+        
+    def generate_prompt(self):
+        # Extract attachment content directly
+        attachment_content = ""
+        if self.attachments:
+            for attachment in self.attachments:
+                if isinstance(attachment, dict):
+                    if attachment.get("type") == "file_summary":
+                        # Large file - use the summary content directly
+                        attachment_content += attachment.get("summary", "") + "\n"
+                    elif attachment.get("type") == "error":
+                        # File with error - minimal info
+                        filename = attachment.get("filename", "unknown file")
+                        attachment_content += f"File: {filename} (could not process)\n"
+                    else:
+                        # Regular base64 file - file is available for analysis
+                        filename = attachment.get("filename", "unknown file")
+                        attachment_content += f"File: {filename} - content available for analysis\n"
+        
+        return f"""
+        Goal: Create a LinkedIn post based on the user's input prompt, tone, language preference, and any additional attachment information.  
+        
+        Tone: {self.tone}
+        Language Preference: {self.language}
+        Attachment Content: {attachment_content.strip() if attachment_content else "No attachments"}
+        
+        Instructions:
+        - Craft a LinkedIn post that aligns with the user's specified tone and language.
+        - Incorporate relevant details from the attachment if provided.
+        - Ensure the post is engaging, professional, and suitable for LinkedIn's audience.
+        - Keep the post concise and to the point, ideally between 100-300 words.
+        - If the attachment is a PDF/document, focus on key themes and insights rather than specific details.
+        - If the attachment is an image, describe the image and include its relevance in the post.
+        - If the attachment is large, use the filename and type to infer content and create relevant commentary.
+        - Use general knowledge to understand prompt and attachments to enhance the post.
+        
+        Output Format:
+        - Return ONLY the final LinkedIn post text. No additional explanations or formatting.
+        - Make it ready to copy-paste directly to LinkedIn.
+        """
 class NicheSpecificRecommendation:
     def __init__(self, career,linkedin_headline,linkedin_about,current_postion,skills,topics, work_experience,niche):
         self.career = career,

@@ -50,3 +50,42 @@ class Image_Processor:
         text = pytesseract.image_to_string(image)
 
         return text
+
+class Simple_File_Handler:
+    """Simplified file processing for attachments"""
+    
+    @staticmethod
+    def get_file_summary(file, file_size):
+        """Simple file summary without complex content extraction"""
+        try:
+            content_type = getattr(file, 'content_type', None) or "unknown"
+            filename = getattr(file, 'filename', 'unknown') or "unknown"
+            
+            # Simple file type detection
+            if filename.lower().endswith('.pdf'):
+                file_type = "PDF Document"
+            elif filename.lower().endswith(('.docx', '.doc')):
+                file_type = "Word Document"
+            elif filename.lower().endswith(('.txt', '.md')):
+                file_type = "Text Document"
+            elif filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
+                file_type = "Image"
+            else:
+                file_type = "File"
+            
+            # Simple size formatting
+            if file_size > 1024 * 1024:
+                size_str = f"{file_size / (1024*1024):.1f}MB"
+            else:
+                size_str = f"{file_size / 1024:.1f}KB"
+            
+            return f"{file_type}: {filename} ({size_str}). Consider this attachment for context in post generation."
+            
+        except Exception as e:
+            return f"Attachment: {getattr(file, 'filename', 'unknown file')}. Use for context in post generation."
+    
+    @staticmethod
+    def should_use_base64(file_size):
+        """Simple check if file should be base64 encoded"""
+        # Limit to 2MB for base64 to avoid issues
+        return file_size <= (2 * 1024 * 1024)

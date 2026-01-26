@@ -1,9 +1,4 @@
-<<<<<<< HEAD
 from fastapi import FastAPI, HTTPException, status, File, UploadFile, Form, HTTPException, Query
-=======
-from typing import Optional
-from fastapi import FastAPI, HTTPException
->>>>>>> main
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
@@ -17,27 +12,29 @@ from firebase_admin import credentials, firestore, auth
 from typing import List, Optional
 import json
 import logging
-from prompts import Comments, SSIRecommendations, SSIImageProcessing, NicheRecommendation,NicheSpecificRecommendation
-from helper import Image_Processor,Clean_JSON, File_to_Base64
+from prompts import Comments, SSIRecommendations, SSIImageProcessing, NicheRecommendation,NicheSpecificRecommendation, PostGenPrompt
+from helper import Image_Processor,Clean_JSON, File_to_Base64, Simple_File_Handler
+
 load_dotenv()
 app = FastAPI()
-<<<<<<< HEAD
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-logger = logging.getLogger(__name__)
-=======
 client = OpenAI()
->>>>>>> main
 
 fireCred = credentials.Certificate(os.getenv("FIREBASE_API"))
 firebase_admin.initialize_app(fireCred)
 db = firestore.client()
 class CommentsBody(BaseModel):
-    
     post: str
     prompt: str | None = None #Optional field with a default value of None
     tone: str | None = None #Optional field with a default value of None
     persona: str | None = None #Optional field with a default value of None
     language: str | None = None #Optional field with a default value of None
+class GeneratePostInput(BaseModel):
+    profile_url: str
+    prompt: str 
+    tone: str | None = None #Optional field with a default value of None
+    language: str | None = None #Optional field with a default value of None
+    attachments: Optional[List[UploadFile]] = File(None) #Optional field with a default value of None
+    history: List[str] = []
 
 class profileLink(BaseModel):
     profile_url: str
@@ -78,6 +75,77 @@ app.add_middleware(
 @app.get("/")
 async def welcome():
     return {"message":"Welcome to the FASTAPI"}
+
+@app.post("/postGenerator")
+async def generate_post(
+    profile_url: str = Form(...),
+    prompt: str = Form(...),
+    tone: Optional[str] = Form(None),
+    language: Optional[str] = Form(None),
+    history: List[str] = Form([]),
+    attachments: Optional[List[UploadFile]] = File(None)
+):
+    tone = tone if tone else "Professional, positive, conversational tone"
+    language = language if language else 'Use American English with plain, conversational language. Short sentences, common vocabulary, American spelling (color, organize), friendly and easy to understand.'
+    
+    # Process attachments if provided
+    processed_attachments = []
+    if attachments:
+        file_cvt = File_to_Base64()
+        for file in attachments:
+            if hasattr(file, 'filename') and file.filename:
+                try:
+                    # Get file size
+                    file_content = await file.read()
+                    file_size = len(file_content)
+                    await file.seek(0)  # Reset file pointer
+                    
+                    # Use simplified logic
+                    if Simple_File_Handler.should_use_base64(file_size):
+                        # Small files - use base64
+                        converted_file = await file_cvt.file_to_base64(file)
+                        processed_attachments.append(converted_file)
+                    else:
+                        # Large files - just provide file summary
+                        file_summary = Simple_File_Handler.get_file_summary(file, file_size)
+                        processed_attachments.append({
+                            "filename": file.filename,
+                            "content_type": getattr(file, 'content_type', 'unknown'),
+                            "size": file_size,
+                            "summary": file_summary,
+                            "type": "file_summary"
+                        })
+                except Exception as e:
+                    # If anything goes wrong, just add basic file info
+                    processed_attachments.append({
+                        "filename": getattr(file, 'filename', 'unknown'),
+                        "error": f"File processing failed: {str(e)}",
+                        "type": "error"
+                    })
+    
+    genPostSystem = PostGenPrompt(processed_attachments, tone, language)
+    try:
+        messages = [{"role": "system", "content": genPostSystem.generate_prompt()},]
+        for i, msg in enumerate(history):
+            if i%2==0:
+                messages.append({"role": "user", "content": msg})
+            else:
+                messages.append({"role":"assistant", "content": msg})
+        messages.append({"role":"user", "content": prompt})
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages = messages,
+            max_tokens=1000,
+            n=1,
+            stop=None,
+            temperature=0.7,      
+        )
+        aiResponse = response.choices[0].message.content.strip()
+        print(aiResponse)
+        return {"response": aiResponse}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.get("/profileAnalysis") #SSI Score Extraction throiugh Image
@@ -342,12 +410,9 @@ def get_ai_comments(body: CommentsBody):
             temperature=0.7,
         )
         comment = response.choices[0].message.content.strip()
-<<<<<<< HEAD
-=======
         print("prompt:", prompt)
         print("comment:", comment)
 
->>>>>>> main
         return {"comment": comment}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

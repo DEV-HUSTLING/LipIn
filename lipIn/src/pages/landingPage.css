@@ -17,6 +17,12 @@ button{
 
 
 }
+.Post_template_view h3{
+    margin: 0 !important;
+}
+.Post_template_view p{
+    margin: 0 !important;
+}
 .dashboard_container nav h3{
     font-size: 3rem;
     margin: 0;

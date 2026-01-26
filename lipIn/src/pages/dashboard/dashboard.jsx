@@ -42,12 +42,12 @@ export default function Dashboard() {
     style={{
     display:'flex',
     flexDirection:'row',
-    gap:'2rem',
+    gap:'1rem',
     }}
     >
       {/* Dashboard Navigation */}
       <nav style={{ 
-         width:'20%',
+         width:'16%',
       height:'100vh',
       display:'flex',
       flexDirection:'column',
@@ -65,14 +65,18 @@ export default function Dashboard() {
          <img src={homeImg} width={"30px"} height={'30px'}/>
          <p>Home</p>
         </Link>
-        <Link to={`/dashboard/${currentProfileId}/analytics`} className={location.pathname===`/dashboard/${currentProfileId}/analytics`?'dashboard_link_active':''} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
-        <img src={SSIboost} width={"30px"} height={'30px'}/>
-         <p>Analytics</p>
-        </Link>
-        <Link to={`/dashboard/${currentProfileId}/postGen`} className={location.pathname===`/dashboard/${currentProfileId}/postGen`?'dashboard_link_active':''} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
-        <img src={SSIboost} width={"30px"} height={'30px'}/>
-         <p>Post Generation</p>
-        </Link>
+        {currentProfileId && (
+          <>
+            <Link to={`/dashboard/${currentProfileId}/analytics`} className={location.pathname===`/dashboard/${currentProfileId}/analytics`?'dashboard_link_active':''} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+            <img src={SSIboost} width={"30px"} height={'30px'}/>
+             <p>Analytics</p>
+            </Link>
+            <Link to={`/dashboard/${currentProfileId}/postGen`} className={location.pathname===`/dashboard/${currentProfileId}/postGen`?'dashboard_link_active':''} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+            <img src={SSIboost} width={"30px"} height={'30px'}/>
+             <p>Post Generation</p>
+            </Link>
+          </>
+        )}
 
       </nav>
       <div className='Container'>
