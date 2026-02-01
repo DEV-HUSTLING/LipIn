@@ -33,7 +33,9 @@ const Comment = ({ postEl, cmntArea, getCmntArea }) => {
 
 // Detect LinkedIn page theme (light/dark) and respond to changes
 useEffect(() => {
-
+    console.log('PostEl', postEl);
+    console.log('CmntAre', cmntArea);
+    console.log('getCmntArea', getCmntArea);
     // Function to detect theme from the actual page
     const detectPageTheme = () => {
       // Method 1: Check LinkedIn's body background color
@@ -329,7 +331,38 @@ useEffect(() => {
     setLoader(true);
     setCmntTool(false);
     
-    // First, wait 3 seconds to find the comment button and then generate the comment DOM element takes time
+    // Check if postEl has the specific structure that doesn't need button finding
+    const hasSpecificStructure = postEl?.classList?.contains('feed-shared-update-v2') && 
+                                 postEl?.getAttribute('role') === 'article' && 
+                                 postEl?.getAttribute('data-urn');
+    
+    if (hasSpecificStructure) {
+      console.log('✅ PostEl has specific structure, generating comment directly without button search');
+      // Generate comment directly without waiting for button
+      const postContent = getPostDescription(postEl);
+      if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
+        chrome.runtime.sendMessage({
+          action: 'generateComment',
+          text: `${postContent}\n${userCmntPrompt}\n${tonePrompt}`
+        }, (res) => {
+          if (chrome.runtime.lastError) {
+            console.warn('chrome.runtime.lastError:', chrome.runtime.lastError);
+            setLoader(false);
+          } else {
+            if (res && res.comments) {
+              setAiComnt(res.comments);
+            } else {
+              setLoader(false);
+            }
+          }
+        });
+      } else {
+        setLoader(false);
+      }
+      return; // Exit early, no need to search for button
+    }
+    
+    // Original logic: wait 3 seconds to find the comment button
     setTimeout(() => {
       
       let foundBtn = null;

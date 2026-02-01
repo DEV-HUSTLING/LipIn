@@ -38,11 +38,18 @@ function CommentTracker() {
         },
     ];
     useEffect(() => {
-        chrome.storage.local.get(['profileURL'], (result) => {
-            if (result.profileURL) {
-                setUrl(result.profileURL)
+        console.log("CommentTracker: Attempting to get profileURl from storage...");
+        chrome.storage.local.get(['profileURl'], (result) => {
+            console.log("CommentTracker: Chrome storage result:", result);
+            if (result.profileURl) {
+                 console.log("CommentTracker: Found profileURl:", result.profileURl);
+                setUrl(result.profileURl)
             } else {
-                console.log("No profile URL found in storage");
+                console.log("CommentTracker: No profileURl found in storage");
+                // Let's also check all storage keys
+                chrome.storage.local.get(null, (allData) => {
+                    console.log("CommentTracker: All storage data:", allData);
+                });
             }
         });
     }, [])

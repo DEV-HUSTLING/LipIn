@@ -1,4 +1,3 @@
-from typing import Optional
 from fastapi import FastAPI, HTTPException, status, File, UploadFile, Form, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -13,8 +12,12 @@ from firebase_admin import credentials, firestore, auth
 from typing import List, Optional
 import json
 import logging
-from prompts import Comments, SSIRecommendations, SSIImageProcessing, NicheRecommendation,NicheSpecificRecommendation
-from helper import Image_Processor,Clean_JSON, File_to_Base64
+import base64
+import io
+from PyPDF2 import PdfReader
+from prompts import Comments, SSIRecommendations, SSIImageProcessing, NicheRecommendation,NicheSpecificRecommendation, PostGenPrompt,ProfileBuilderPrompt
+from helper import Image_Processor,Clean_JSON, File_to_Base64, Simple_File_Handler
+
 load_dotenv()
 app = FastAPI()
 client = OpenAI()
@@ -23,12 +26,18 @@ fireCred = credentials.Certificate(os.getenv("FIREBASE_API"))
 firebase_admin.initialize_app(fireCred)
 db = firestore.client()
 class CommentsBody(BaseModel):
-    
     post: str
     prompt: str | None = None #Optional field with a default value of None
     tone: str | None = None #Optional field with a default value of None
     persona: str | None = None #Optional field with a default value of None
     language: str | None = None #Optional field with a default value of None
+class GeneratePostInput(BaseModel):
+    profile_url: str
+    prompt: str 
+    tone: str | None = None #Optional field with a default value of None
+    language: str | None = None #Optional field with a default value of None
+    attachments: Optional[List[UploadFile]] = File(None) #Optional field with a default value of None
+    history: List[str] = []
 
 class profileLink(BaseModel):
     profile_url: str
@@ -46,6 +55,9 @@ class AskAIChat(BaseModel):
     profile_url: Optional[str] = None
 class GoogleSignInResponse(BaseModel):
     message: str
+class SelectedNicheRequest(BaseModel):
+    profile_url: str
+    niche: str
 origins = [
     "http://localhost:3000",  # React default
     "http://127.0.0.1:3000",
@@ -70,11 +82,187 @@ app.add_middleware(
 async def welcome():
     return {"message":"Welcome to the FASTAPI"}
 
+@app.post("/postGenerator")
+async def generate_post(
+    profile_url: str = Form(...),
+    prompt: str = Form(...),
+    tone: Optional[str] = Form(None),
+    language: Optional[str] = Form(None),
+    history: List[str] = Form([]),
+    attachments: Optional[List[UploadFile]] = File(None)
+):
+    tone = tone if tone else "Professional, positive, conversational tone"
+    language = language if language else 'Use American English with plain, conversational language. Short sentences, common vocabulary, American spelling (color, organize), friendly and easy to understand.'
+    
+    # Process attachments if provided
+    processed_attachments = []
+    if attachments:
+        file_cvt = File_to_Base64()
+        for file in attachments:
+            if hasattr(file, 'filename') and file.filename:
+                try:
+                    # Get file size
+                    file_content = await file.read()
+                    file_size = len(file_content)
+                    await file.seek(0)  # Reset file pointer
+                    
+                    # Use simplified logic
+                    if Simple_File_Handler.should_use_base64(file_size):
+                        # Small files - use base64
+                        converted_file = await file_cvt.file_to_base64(file)
+                        processed_attachments.append(converted_file)
+                    else:
+                        # Large files - just provide file summary
+                        file_summary = Simple_File_Handler.get_file_summary(file, file_size)
+                        processed_attachments.append({
+                            "filename": file.filename,
+                            "content_type": getattr(file, 'content_type', 'unknown'),
+                            "size": file_size,
+                            "summary": file_summary,
+                            "type": "file_summary"
+                        })
+                except Exception as e:
+                    # If anything goes wrong, just add basic file info
+                    processed_attachments.append({
+                        "filename": getattr(file, 'filename', 'unknown'),
+                        "error": f"File processing failed: {str(e)}",
+                        "type": "error"
+                    })
+    
+    genPostSystem = PostGenPrompt(processed_attachments, tone, language)
+    try:
+        messages = [{"role": "system", "content": genPostSystem.generate_prompt()},]
+        for i, msg in enumerate(history):
+            if i%2==0:
+                messages.append({"role": "user", "content": msg})
+            else:
+                messages.append({"role":"assistant", "content": msg})
+        messages.append({"role":"user", "content": prompt})
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages = messages,
+            max_tokens=1000,
+            n=1,
+            stop=None,
+            temperature=0.7,      
+        )
+        aiResponse = response.choices[0].message.content.strip()
+        print(aiResponse)
+        return {"response": aiResponse}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/profileBuilder")
+async def get_profile_builder(profile_url: str = Query(...), niche: str = Query(None)):
+    try:
+        documents = []
+        doc_ref = (
+            db.collection("users")
+            .document(profile_url.strip())
+            .collection("personalInfo")
+            .stream()
+        )
+    
+        for d in doc_ref:
+            documents.append(d.to_dict())
+        for doc in documents:
+            headline = doc.get("headline")
+            purpose = doc.get("purpose")
+            currentExp = doc.get("currentExp")
+            pastExp = doc.get("pastExperience")
+            about = doc.get("userDescription")
+            topic_files = doc.get("topicsFiles")
+            topics=[]
+            if topic_files:
+                for topic in topic_files:
+                    topics.append(topic)
+            skills_files = doc.get("skillsFiles")
+            skills = []
+            if skills_files:
+                for skill in skills_files:
+                    skills.append(skill)
+            career = doc.get("careerVision")
+            Niche = None
+            if doc.get("niche"):
+                Niche = doc.get("niche")
+            else:
+                Niche = niche
+            profileSysIns = ProfileBuilderPrompt()
+
+            ssi_files = doc.get("ssiScoreFiles")
+            cleaned_response = {}
+            if ssi_files:
+                for idx, img in enumerate(ssi_files):
+                    try:
+                        # Get proper content type
+                        content_type = img.get("content_type", "image/jpeg")
+                        image_type = content_type.split("/")[-1] if "/" in content_type else "jpeg"
+                        
+                        # Validate format
+                        if image_type not in ["jpeg", "jpg", "png", "gif", "webp"]:
+                            image_type = "jpeg"
+                        
+                        base64_data = img.get("base64", "")
+                        if not base64_data:
+                            continue
+                            
+                        data_uri = f"data:image/{image_type};base64,{base64_data}"
+                        # ... rest of processing
+                    except Exception as e:
+                        print(f"Error processing SSI image {idx}: {e}")
+                        continue
+            try:
+                response = client.chat.completions.create(
+                model = "gpt-4o-mini",
+                messages =[
+                    profileSysIns.generate_prompt(),
+                    {
+                        "role":"user",
+                        "content":[
+                            
+                            {"type":"text",
+                             "text":f"""
+                                PURPOSE: {purpose}
+                                TARGET AUDIENCE: 
+                                CAREER GOALS: {career}
+                                CURRENT HEADLINE: {headline}
+                                CURRENT ABOUT SECTION: {about}
+                                SKILLS: {', '.join(skills)}
+                                TOPICS OF INTEREST: {', '.join(topics)}
+                                CURRENT POSITION:
+                                Role: {currentExp}
+                                PAST EXPERIENCE:{pastExp}
+                                SSI SCORE DATA: {cleaned_response}
+                                NICHE: {Niche}
+                                """
+                             }
+                         
+                        ]
+                    }
+                ]
+            )
+                profile_builder_cleaner = Clean_JSON(response.choices[0].message.content)
+                cleaned_profile_builder = profile_builder_cleaner.clean_json_response()
+                try:
+                    parsed_profile_builder = json.loads(cleaned_profile_builder)
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing profile builder JSON: {e}")
+                    print(f"Raw response: {cleaned_profile_builder}")
+                    raise HTTPException(500, f"Failed to parse profile builder response: {str(e)}")
+            except Exception as e:
+                print(f"Error generating profile builder data: {e}")
+                raise HTTPException(500, f"Error generating profile builder data: {str(e)}")
+        
+        return {"success": True, "message": "Profile data fetched successfully", "data":parsed_profile_builder }
+    
+    except Exception as e:
+        print("ERROR:", e)
+        raise HTTPException(500, f"Error fetching profile data: {str(e)}")
 
 @app.get("/profileAnalysis") #SSI Score Extraction throiugh Image
 async def get_personal_info(profile_url: str = Query(...)):
     documents = []
-    
+    print('the API is called')
     try:
         # Validate profile_url is not empty
         if not profile_url or profile_url.strip() == "":
@@ -107,70 +295,110 @@ async def get_personal_info(profile_url: str = Query(...)):
             career = doc.get("careerVision")
 
             ssi_files = doc.get("ssiScoreFiles")
-            if ssi_files:
-                for img in ssi_files:
-                    image_type = "jpeg"
-                    data_uri = f"data:image/{image_type};base64,{img["base64"]}"
-                    ssi_image_extraction = SSIImageProcessing(data_uri)
-                    ssi_img_response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": "You are an AI assistant that will extract the key information like SSI score, individual component values, Industry and Network ranks, and comparitive data."},
+            resume = doc.get("resumeFiles")
+            processed_resume = []
+            if resume:
+                # Resume files from Firestore are stored as dictionaries with base64 data
+                # Extract text from PDF files
+                for file_data in resume:
+                    if isinstance(file_data, dict) and "base64" in file_data:
+                        try:
+                            # Decode base64 to get PDF bytes
+                            pdf_bytes = base64.b64decode(file_data["base64"])
+                            pdf_file = io.BytesIO(pdf_bytes)
+                            
+                            # Extract text from PDF
+                            pdf_reader = PdfReader(pdf_file)
+                            text_content = ""
+                            for page in pdf_reader.pages:
+                                text_content += page.extract_text() + "\n"
+                            
+                            # Add ONLY extracted text - no base64 data
+                            processed_resume.append({
+                                "filename": file_data.get("filename", "resume.pdf"),
+                                "content": text_content.strip(),
+                                "type": "pdf_text_extracted"
+                            })
+                        except Exception as e:
+                            print(f"Error extracting PDF text: {e}")
+                            # If extraction fails, just note the error - NO base64
+                            processed_resume.append({
+                                "filename": file_data.get("filename", "unknown"),
+                                "error": f"PDF extraction failed: {str(e)}",
+                                "type": "error"
+                            })
+                    elif isinstance(file_data, dict) and "content" in file_data and "base64" not in file_data:
+                        # Already has text content without base64 - safe to include
+                        processed_resume.append(file_data)
+                    elif isinstance(file_data, str) and not file_data.startswith("data:"):
+                        # Plain text string (not a data URI)
+                        processed_resume.append({
+                            "content": file_data,
+                            "type": "resume_data"
+                        })
+                    else:
+                        print(f"Skipping resume item - might contain base64: {type(file_data)}")
+            # if ssi_files:
+            #     for img in ssi_files:
+            #         image_type = "jpeg"
+            #         data_uri = f"data:image/{image_type};base64,{img["base64"]}"
+            #         ssi_image_extraction = SSIImageProcessing(data_uri)
+            #         ssi_img_response = client.chat.completions.create(
+            #         model="gpt-4o-mini",
+            #         messages=[
+            #             {"role": "system", "content": "You are an AI assistant that will extract the key information like SSI score, individual component values, Industry and Network ranks, and comparitive data."},
+            #             ssi_image_extraction.generate_prompt()
                         
-                        ssi_image_extraction.generate_prompt()
-                        
-                     ],
-                    max_tokens=300
-                    )
-                # Clean responses using helper function
-                ssi_cleaner = Clean_JSON(ssi_img_response.choices[0].message.content)
-                cleaned_response = ssi_cleaner.clean_json_response()
+            #          ],
+            #         max_tokens=300
+            #         )
+            #     # Clean responses using helper function
+            #     ssi_cleaner = Clean_JSON(ssi_img_response.choices[0].message.content)
+            #     cleaned_response = ssi_cleaner.clean_json_response()
 
                 # Niche REcommendations
-                niche_analysis_prompt = NicheRecommendation(career,headline,about,currentExp,skills,topics, pastExp)
+                niche_analysis_prompt = NicheRecommendation(career,headline,about,currentExp,skills,topics, pastExp, processed_resume)
+                
+                # Get the messages to inspect them
+                messages_to_send = niche_analysis_prompt.generate_niche_prompt()
                 niche_analysis = client.chat.completions.create(
                     model = "gpt-4o-mini",
-                    messages = niche_analysis_prompt.generate_niche_prompt(),
+                    messages = messages_to_send,
                     max_tokens = 800
                 )
                 niche_recomendation_cleaner = Clean_JSON(niche_analysis.choices[0].message.content)
                 cleaned_niche_analysis = niche_recomendation_cleaner.clean_json_response() 
                 # SSI Improvement Recommendations
-                ssi_analysis_prompt = SSIRecommendations(cleaned_response) #Generate's SSI Improvement Recommendations
-                ssi_analysis = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": "You are a LinkedIn SSI optimization agent focused to improve the user's SSI score based on the extracted data. Specifically, provide the recommedations to improve each of the four components of the SSI score."},
-                        {
-                            "role": "user",
-                            "content": [
-                            {"type": "text", "text": ssi_analysis_prompt.generate_ssi_analysis() },
-                            ]
-                        }
-                     ],
-                    max_tokens=800  # Increased for detailed recommendations
-                    )
-                ssi_analysis_cleaner = Clean_JSON(ssi_analysis.choices[0].message.content)
-                cleaned_ssi_analysis = ssi_analysis_cleaner.clean_json_response()                
-                try:
-                    # Parse SSI data
-                    parsed_data = json.loads(cleaned_response)
-                except json.JSONDecodeError as e:
-                    print(f"Error parsing SSI data: {e}")
-                    print(f"Raw SSI response: {cleaned_response}")
-                    # Return error with raw response for debugging
-                    return {
-                        "success": False,
-                        "message": "Failed to parse SSI data",
-                        "error": str(e),
-                        "raw_ssi_response": cleaned_response
-                    }
+                # ssi_analysis_prompt = SSIRecommendations(cleaned_response) #Generate's SSI Improvement Recommendations
+                # ssi_analysis = client.chat.completions.create(
+                #     model="gpt-4o-mini",
+                #     messages=[
+                #         {"role": "system", "content": "You are a LinkedIn SSI optimization agent focused to improve the user's SSI score based on the extracted data. Specifically, provide the recommedations to improve each of the four components of the SSI score."},
+                #         {
+                #             "role": "user",
+                #             "content": [
+                #             {"type": "text", "text": ssi_analysis_prompt.generate_ssi_analysis() },
+                #             ]
+                #         }
+                #      ],
+                #     max_tokens=800  # Increased for detailed recommendations
+                #     )
+                # ssi_analysis_cleaner = Clean_JSON(ssi_analysis.choices[0].message.content)
+                # cleaned_ssi_analysis = ssi_analysis_cleaner.clean_json_response()                
+                # try:
+                #     # Parse SSI data
+                #     parsed_data = json.loads(cleaned_response)
+                # except json.JSONDecodeError as e:
+                #     return {
+                #         "success": False,
+                #         "message": "Failed to parse SSI data",
+                #         "error": str(e),
+                #         "raw_ssi_response": cleaned_response
+                #     }
                 try:
                     # Parse SSI data
                     parsed_nicheRecom_data = json.loads(cleaned_niche_analysis)
                 except json.JSONDecodeError as e:
-                    print(f"Error parsing SSI data: {e}")
-                    print(f"Raw SSI response: {cleaned_niche_analysis}")
                     # Return error with raw response for debugging
                     return {
                         "success": False,
@@ -178,28 +406,28 @@ async def get_personal_info(profile_url: str = Query(...)):
                         "error": str(e),
                         "raw_ssi_response": cleaned_niche_analysis
                     }
-                try:
-                    # Parse recommendations data
-                    recommendations_data = json.loads(cleaned_ssi_analysis)
-                except json.JSONDecodeError as e:
-                    print(f"Error parsing recommendations: {e}")
-                    print(f"Raw recommendations response: {cleaned_ssi_analysis}")
-                    # Return SSI data without recommendations
-                    return {
-                        "success": True,
-                        "message": "SSI data processed, but recommendations parsing failed",
-                        "data": {
-                            "ssi_data": parsed_data,
-                            "recommendations": [],
-                            "recommendations_error": str(e),
-                            "raw_recommendations_response": cleaned_ssi_analysis
-                        }
-                    }
+                # try:
+                #     # Parse recommendations data
+                #     recommendations_data = json.loads(cleaned_ssi_analysis)
+                # except json.JSONDecodeError as e:
+                #     print(f"Error parsing recommendations: {e}")
+                #     print(f"Raw recommendations response: {cleaned_ssi_analysis}")
+                #     # Return SSI data without recommendations
+                #     return {
+                #         "success": True,
+                #         "message": "SSI data processed, but recommendations parsing failed",
+                #         "data": {
+                #             "ssi_data": parsed_data,
+                #             "recommendations": [],
+                #             "recommendations_error": str(e),
+                #             "raw_recommendations_response": cleaned_ssi_analysis
+                #         }
+                #     }
                 
                 # Combine both results
                 combined_result = {
-                    "ssi_data": parsed_data,
-                    "ssi_recommendations": recommendations_data,
+                    # "ssi_data": parsed_data,
+                    # "ssi_recommendations": recommendations_data,
                     "niche_recommendations": parsed_nicheRecom_data
 
                 }
@@ -210,13 +438,40 @@ async def get_personal_info(profile_url: str = Query(...)):
         print("ERROR:", e)
         raise HTTPException(500, f"Error processing personal info: {str(e)}")
 
+@app.post("/SelectedNiche")
+async def add_selected_niche(body:SelectedNicheRequest):
+    try:
+        profile_url = body.profile_url
+        niche = body.niche
+        
+        # Update Firestore document
+        user_doc_ref = db.collection("users").document(profile_url).collection('personalInfo')
+        docs = list(user_doc_ref.limit(1).stream())
+        
+        if not docs:
+            raise HTTPException(404, "User personal info not found")
+        
+        doc_id = docs[0].id
+        user_doc_ref.document(doc_id).update({
+            "niche": niche
+        })
+        
+        return {
+            "success": True,
+            "message": "Selected niche updated successfully"
+        }
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(500, str(e))
+
 @app.post("/personalInfo") #Store User Personal Info
 async def create_personal_info(
                             url: str = Form(...),
         email: str = Form(...),
         name: str = Form(...),
         userDescription: str = Form(...),
-        purpose: str = Form(...),
+        purpose: List[str] = Form([]),
         careerVision: str = Form(...),
         headline: str = Form(...),
         ssiScore:  Optional[List[UploadFile]] = File(None),

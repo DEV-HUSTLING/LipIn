@@ -4,7 +4,7 @@ import { CommentComponent } from './utils.jsx'
 function addIfNotExists(post, postContainer) {
     if (!post || !(post instanceof Element)) return;
     // Don't add twice — CommentComponent creates `.lipin-comment-panel` and sets `data-lipin-comment-root`.
-    if (post.querySelector('.lipin-comment-panel') || post.querySelector('[data-lipin-comment-root]')) return;
+    if (post.querySelector('.lipin-comment-panel') || post.querySelector('[data-lipin-comment-root]')||post.querySelector('.ai-comment-panel') || post.querySelector('[data-lipin-comment-root]')) return;
     CommentComponent(post, postContainer);
 
 }
@@ -12,14 +12,20 @@ function addIfNotExists(post, postContainer) {
 function scanAndAddButtons() {
     // check the comment click
     document.addEventListener('click', function (e) {
+        console.log('Click detected on:', e.target);
         const cmntBtn = e.target.closest('[data-view-name="feed-comment-button"]')
+        const cmntBtn2 = e.target.closest('button.comment-button')
+        const cmntBtn3 = e.target.closest('button[aria-label*="comment"]')
+        const cmntBtn4 = e.target.closest('.comments-comment-button')
+        
         if (cmntBtn) {
+            console.log('Comment button 1 clicked');
             setTimeout(() => {
                 const postContainer = cmntBtn.closest('[componentKey*="MAIN_FEED_RELEVANCE"]');
-                console.log('postContainer',postContainer)
+                console.log('postContainer', postContainer)
                 if (postContainer) {
                     const cmntEditor = postContainer.querySelector('[aria-label="Text editor for creating comment"]')
-                    console.log('comment editor',cmntEditor)
+                    console.log('comment editor', cmntEditor)
                     if (cmntEditor) {
                         addIfNotExists(cmntEditor, postContainer)
 
@@ -33,6 +39,79 @@ function scanAndAddButtons() {
                 }
             }, 300)
         }
+        else if(cmntBtn2){
+            console.log('Comment button 2 clicked');
+             setTimeout(()=>{
+                const postContainer = cmntBtn2.closest('div.feed-shared-update-v2');
+                console.log('postContainer for cmntBtn2', postContainer);
+                if(postContainer){
+                    const cmntEditor = postContainer.querySelector('.comments-comment-texteditor')
+                    console.log('cmntEditor found:', cmntEditor);
+                    if(cmntEditor){
+                        console.log('Comment editor found!')
+                        addIfNotExists(cmntEditor,postContainer)
+      
+                    }else{
+                        setTimeout(()=>{
+                        const cmntEditor = postContainer.querySelector('.comments-comment-texteditor')
+                        if(cmntEditor) addIfNotExists(cmntEditor,postContainer)
+                        }, 800)
+                    }
+
+                }
+            },300)
+        }
+        else if(cmntBtn3){
+            console.log('Comment button 3 clicked');
+            setTimeout(()=>{
+                const postContainer = cmntBtn3.closest('article') || cmntBtn3.closest('[data-urn]') || cmntBtn3.closest('.feed-shared-update-v2');
+                console.log('postContainer for cmntBtn3', postContainer);
+                if(postContainer){
+                    // Try multiple selectors for comment editor
+                    let cmntEditor = postContainer.querySelector('.comments-comment-texteditor') || 
+                                   postContainer.querySelector('[contenteditable="true"]') ||
+                                   postContainer.querySelector('.ql-editor') ||
+                                   postContainer.querySelector('[aria-label*="comment"]');
+                    console.log('cmntEditor found:', cmntEditor);
+                    if(cmntEditor){
+                        console.log('Comment editor found via button 3!')
+                        addIfNotExists(cmntEditor, postContainer)
+                    }else{
+                        setTimeout(()=>{
+                            cmntEditor = postContainer.querySelector('.comments-comment-texteditor') || 
+                                       postContainer.querySelector('[contenteditable="true"]') ||
+                                       postContainer.querySelector('.ql-editor') ||
+                                       postContainer.querySelector('[aria-label*="comment"]');
+                            if(cmntEditor) addIfNotExists(cmntEditor, postContainer)
+                        }, 800)
+                    }
+                }
+            }, 300)
+        }
+        else if(cmntBtn4){
+            console.log('Comment button 4 clicked');
+            setTimeout(()=>{
+                const postContainer = cmntBtn4.closest('article') || cmntBtn4.closest('[data-urn]') || cmntBtn4.closest('.feed-shared-update-v2');
+                console.log('postContainer for cmntBtn4', postContainer);
+                if(postContainer){
+                    let cmntEditor = postContainer.querySelector('.comments-comment-texteditor') || 
+                                   postContainer.querySelector('[contenteditable="true"]') ||
+                                   postContainer.querySelector('.ql-editor');
+                    console.log('cmntEditor found:', cmntEditor);
+                    if(cmntEditor){
+                        console.log('Comment editor found via button 4!')
+                        addIfNotExists(cmntEditor, postContainer)
+                    }else{
+                        setTimeout(()=>{
+                            cmntEditor = postContainer.querySelector('.comments-comment-texteditor') || 
+                                       postContainer.querySelector('[contenteditable="true"]') ||
+                                       postContainer.querySelector('.ql-editor');
+                            if(cmntEditor) addIfNotExists(cmntEditor, postContainer)
+                        }, 800)
+                    }
+                }
+            }, 300)
+        }
     }, true)
     // const posts = document.querySelectorAll('div.comments-comment-texteditor');
     // posts.forEach(p => addIfNotExists(p));
@@ -41,84 +120,123 @@ function scanAndAddButtons() {
 function getProfileUrl(sidebar) {
     if (!sidebar) return;
     const profileLink = sidebar.querySelector('a[data-view-name="identity-self-profile"]');
-    if (!profileLink) return;
-    const extract = () => {
-        const href = profileLink.href;
-        if (
-            !href ||
-            (!href.startsWith('/in/') &&
-                !href.startsWith('https://www.linkedin.com/in/'))
-        ) {
-            return false;
-        }
 
-        const absoluteUrl = href.startsWith('/')
-            ? `https://www.linkedin.com${href}`
-            : href;
+    if (profileLink) {
+        const extract = () => {
+            const href = profileLink.href;
+            if (
+                !href ||
+                (!href.startsWith('/in/') &&
+                    !href.startsWith('https://www.linkedin.com/in/'))
+            ) {
+                return false;
+            }
 
-        // Trigger CommentTracker rendering
-        // getUserLink(sidebar);
-        // Save data
-chrome.storage.local.set({profileURL: absoluteUrl}, () => {
-  console.log('Saved to extension storage');
-});
+            const absoluteUrl = href.startsWith('/')
+                ? `https://www.linkedin.com${href}`
+                : href;
 
-        chrome.runtime.sendMessage({
-            action: 'profileURL',
-            profileURL: absoluteUrl,
+            // Save data
+            chrome.storage.local.set({ profileURl: absoluteUrl }, () => {
+                console.log('Saved to extension storage from profile link');
+            });
+
+            chrome.runtime.sendMessage({
+                action: 'profileURL',
+                profileURL: absoluteUrl,
+            });
+            return true;
+        };
+
+        if (extract()) return;
+
+        // Fixed: observe the profileLink element, not undefined profileCard
+        const observer = new MutationObserver(() => {
+            if (extract()) observer.disconnect();
         });
-        return true;
-    };
-    if (extract()) return;
-    
-    // Fixed: observe the profileLink element, not undefined profileCard
-    const observer = new MutationObserver(() => {
-        if (extract()) observer.disconnect();
-    });
 
-    observer.observe(profileLink, {
-        childList: true,
-        subtree: true
-    });
+        observer.observe(profileLink, {
+            childList: true,
+            subtree: true
+        });
+    } else {
+        const stickyContent = sidebar.querySelector('.scaffold-layout__sticky-content');
+        if (!stickyContent) return;
+        const profileCard = stickyContent.querySelector('.artdeco-card.profile-card');
+        const extract = () => {
+            const link = profileCard.querySelector('a[href^="/in/"], a[href^="https://www.linkedin.com/in/"]');
+            if (!link) return false;
+            
+            const absoluteUrl = link.href.startsWith('/')
+                ? `https://www.linkedin.com${link.href}`
+                : link.href;
+            
+            // Save data with correct key
+            chrome.storage.local.set({ profileURl: absoluteUrl }, () => {
+                console.log('Saved to extension storage from profile card');
+            });
+            
+            chrome.runtime.sendMessage({
+                action: 'profileURL',
+                profileURL: absoluteUrl
+            });
+            
+            return true;
+        };
+        if (extract()) return;
+        const observer = new MutationObserver(() => {
+            if (extract()) observer.disconnect();
+        });
+
+        observer.observe(profileCard, {
+            childList: true,
+            subtree: true
+        });
+    }
 }
 
 
 // Function to trigger profile URL extraction
 function triggerGetProfileURL() {
-    console.log('Triggering getProfileURL...');
 
     // Find all sidebar elements and execute getProfileUrl on them
     const sidebars = document.querySelectorAll('[role="main"]');
 
     if (sidebars.length > 0) {
         sidebars.forEach(sidebar => {
-            console.log('Found sidebar, executing getProfileUrl...');
             getProfileUrl(sidebar);
         });
-        console.log(`Executed getProfileUrl on ${sidebars.length} sidebar(s)`);
         return { success: true, message: `Executed getProfileUrl on ${sidebars.length} sidebar(s)` };
     } else {
-        console.log('No sidebars found, will wait for them to load...');
-
+        console.log('No sidebars found, will wait for them to load');
+        const sidebar_2 = document.querySelectorAll('aside.scaffold-layout__sidebar')
+        if (sidebar_2.length > 0) {
+            sidebar_2.forEach(sidebar => {
+                getProfileUrl(sidebar);
+            });
+            return { success: true, message: `Executed getProfileUrl on ${sidebar_2.length} scaffold sidebar(s)` };
+        } else {
+            return { success: false, message: 'No sidebars found at all' };
+        }
         // If no sidebars found, wait for them to load
-        const observer = new MutationObserver((mutations) => {
-            const newSidebars = document.querySelectorAll('[role="main"]');
-            if (newSidebars.length > 0) {
-                console.log('Sidebars loaded, executing getProfileUrl...');
-                newSidebars.forEach(sidebar => getProfileUrl(sidebar));
-                observer.disconnect();
-            }
-        });
+        // const observer = new MutationObserver((mutations) => {
+        //     const newSidebars = document.querySelectorAll('[role="main"]');
+        //     if (newSidebars.length > 0) {
+        //         console.log('Sidebars loaded, executing getProfileUrl...');
+        //         newSidebars.forEach(sidebar => getProfileUrl(sidebar));
+        //         observer.disconnect();
+        //     }
+        // });
 
-        observer.observe(document.body, { childList: true, subtree: true });
+        // observer.observe(document.body, { childList: true, subtree: true });
 
-        // Timeout after 10 seconds
-        setTimeout(() => {
-            observer.disconnect();
-            console.log('Timeout waiting for sidebars');
-        }, 10000);
+        // // Timeout after 10 seconds
+        // setTimeout(() => {
+        //     observer.disconnect();
+        //     console.log('Timeout waiting for sidebars');
+        // }, 10000);
 
-        return { success: false, message: 'No sidebars found, waiting for page to load...' };
+        // return { success: false, message: 'No sidebars found, waiting for page to load...' };
     }
 }
 
