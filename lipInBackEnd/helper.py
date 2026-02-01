@@ -1,3 +1,5 @@
+import json
+import re
 class File_to_Base64:
     async def file_to_base64(self, file):
         from fastapi import HTTPException
@@ -20,17 +22,48 @@ class File_to_Base64:
         print(f"Count is now: {self.count}")
 
 class Clean_JSON:
-    def __init__(self, raw_json):
-        self.raw_json = raw_json
+    def __init__(self, raw_response):
+        self.raw_response = raw_response
 
     def clean_json_response(self):
-        import re
-        cleaned = re.sub(r'```json\s*|\s*```', '', self.raw_json)
-        cleaned = cleaned.strip()
-
-        cleaned = re.sub(r',(\s*[}\]])', r'\1', cleaned)
-
-        return cleaned
+        """Clean and extract JSON from AI response"""
+        response = self.raw_response.strip()
+        
+        # Remove markdown code blocks if present
+        response = re.sub(r'^```json\s*|\s*```$', '', response, flags=re.MULTILINE)
+        response = re.sub(r'^```\s*|\s*```$', '', response, flags=re.MULTILINE)
+        
+        # Remove any leading/trailing whitespace
+        response = response.strip()
+        
+        # Find JSON content between first { and last }
+        start = response.find('{')
+        end = response.rfind('}')
+        
+        if start != -1 and end != -1:
+            response = response[start:end+1]
+        
+        # Also check for JSON arrays starting with [
+        if response.startswith('['):
+            end = response.rfind(']')
+            if end != -1:
+                response = response[:end+1]
+        
+        # Fix common control character issues
+        # Replace unescaped newlines within strings
+        # This is a simple fix - more robust parsing would be better
+        try:
+            # Try parsing first
+            parsed = json.loads(response)
+            return json.dumps(parsed)  # Return as properly formatted JSON string
+        except json.JSONDecodeError:
+            # If it fails, try to fix control characters
+            # Replace literal newlines with \n
+            response = response.replace('\r\n', '\\n').replace('\n', '\\n').replace('\r', '\\n')
+            # Replace literal tabs with \t
+            response = response.replace('\t', '\\t')
+            
+            return response
 
 class Image_Processor:
     def __init__(self, base64_img ):
