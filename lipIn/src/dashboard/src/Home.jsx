@@ -22,7 +22,7 @@ function Home() {
         try {
             const response = await authAPI.googleSignIn(profileId.split("/in/")[1]?.split("/")[0])
             if(response.message === "existing_user"){
-                navigate(`/dashboard/${profileId.split("/in/")[1]?.split("/")[0]}/analytics`)
+                navigate(`/dashboard/${profileId.split("/in/")[1]?.split("/")[0]}/ProfileBuilder`)
             }
             else{
                 navigate(`/form/${profileId.split("/in/")[1]?.split("/")[0]}`)
@@ -33,17 +33,17 @@ function Home() {
     }
     }
     return (
-        <div className='Container'>
+        <div className='Container' style={{maxWidth:'1200px', margin:'0 auto'}}>
                   <header>
         <div className='Header'>
           <h3><span style={{ color: 'black' }}>Lip</span><span style={{ color: '#F4287B', fontWeight: 'bold' }}>In</span></h3>
-          <Button variant="contained" sx={{
+          {/* <Button variant="contained" sx={{
             backgroundColor: '#F4287B',
             color: 'white',
           }}
           >
             SignIn
-          </Button>
+          </Button> */}
         </div>
       </header>
             <main >

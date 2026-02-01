@@ -1,6 +1,6 @@
 import axios from 'axios';
 import React,{useState, useEffect} from 'react'
-import PostPreview from './components/PostPreview';
+import PostPreview from '../components/PostPreview.jsx';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 function PostGen() {
   const [inputValue, setInputValue] = useState('');

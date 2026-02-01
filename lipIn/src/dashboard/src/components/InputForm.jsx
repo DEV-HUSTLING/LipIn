@@ -2,138 +2,203 @@ import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import '../../landingPage.css'
 import { Button } from '@mui/material'
-import { useParams } from "react-router-dom";
+import { Navigate, useParams, useNavigate } from "react-router-dom";
 import { FormControl, InputLabel, FormHelperText, Input, TextareaAutosize } from '@mui/material';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import { collection, getDocs, query, orderBy, limit, getFirestore, where } from "firebase/firestore";
-
+import LoadingScreen from './LoadingScreen';
+import Select from '@mui/material/Select';
+import Chip from '@mui/material/Chip';
+import OutlinedInput from '@mui/material/OutlinedInput';
+import Box from '@mui/material/Box';
+import MenuItem from '@mui/material/MenuItem';
 function InputForm() {
     const { profileId } = useParams()
+    const navigate = useNavigate()
+    const Nichenames = [
+        "Career transitions and pivots",
+        "Leadership and management",
+        "Personal branding",
+        "Skill development and upskilling",
+        "Networking and relationship building",
+        "Work-life balance and productivity",
+        "Entrepreneurship",
+        "Public speaking and communication",
+    ];
+    const [isLoadingNiche, setIsLoadingNiche] = useState(false)
+    const [inputRes, setinputRes] = useState(false)
     const [inputForm, setInputForm] = useState({
         url: '',
         email: '',
         name: '',
         userDescription: '',
-        purpose: '',
+        purpose: [],
         careerVision: '',
         headline: '',
         ssiScore: [],
         profileFile: [],
         resume: [],
         currentExp: '',
-        topics:[],
-        skills:[],
+        topics: [],
+        skills: [],
         pastExperience: ''
     })
     useEffect(() => {
         console.log(profileId)
-    if (profileId) {
-        setInputForm(prev => ({
-            ...prev,
-            url: profileId
-        }));
-    }
-}, [profileId]);
+        if (profileId) {
+            setInputForm(prev => ({
+                ...prev,
+                url: profileId
+            }));
+        }
+    }, [profileId]);
 
     const handleChange = (e) => {
-        const  { name, type, value, files } = e.target;
+        const { name, type, value, files } = e.target;
         setInputForm(prev => ({
             ...prev,
             [name]: type === 'file' ? [...prev[name], ...Array.from(files)] || null : value,
         }))
     }
-const submitForm = () => {
-    const formData = new FormData();
-    
-    // Add text fields
-    formData.append('url', inputForm.url || '');
-    formData.append('email', inputForm.email || '');
-    formData.append('name', inputForm.name || '');
-    formData.append('userDescription', inputForm.userDescription || '');
-    formData.append('purpose', inputForm.purpose || '');
-    formData.append('careerVision', inputForm.careerVision || '');
-    formData.append('headline', inputForm.headline || '');
-    formData.append('currentExp', inputForm.currentExp || '');
-    formData.append('pastExperience', inputForm.pastExperience || '');
-    
-    // Add profileFileAnalytics files
-    if (Array.isArray(inputForm.ssiScore)) {
-        inputForm.ssiScore.forEach((file) => {
-            if (file instanceof File) {
-                formData.append('ssiScore', file);
-            }
-        });
-    }
-    // Add skills array
-     if(inputForm.topics){
-    inputForm.topics.forEach(ele => {
-        formData.append('topics',ele)
-    });
-   }
-   if(inputForm.skills){
-    inputForm.skills.forEach(ele => {
-        formData.append('skills',ele)
-    });
-   } 
-    // Add profileFile files
-    if (Array.isArray(inputForm.profileFile)) {
-        inputForm.profileFile.forEach((file) => {
-            if (file instanceof File) {
-                formData.append('profileFile', file);
-            }
-        });
-    }
-    
-    // Add resume files
-    if (Array.isArray(inputForm.resume)) {
-        inputForm.resume.forEach((file) => {
-            if (file instanceof File) {
-                formData.append('resume', file);
-            }
-        });
-    }
+    const submitForm = () => {
+        const formData = new FormData();
 
-    
-    axios.post('https://lipin.onrender.com/personalInfo', formData, {
-        headers: {
-            'Content-Type': 'multipart/form-data'
+        // Add text fields
+        formData.append('url', inputForm.url || '');
+        formData.append('email', inputForm.email || '');
+        formData.append('name', inputForm.name || '');
+        formData.append('userDescription', inputForm.userDescription || '');
+        formData.append('purpose', inputForm.purpose || '');
+        formData.append('careerVision', inputForm.careerVision || '');
+        formData.append('headline', inputForm.headline || '');
+        formData.append('currentExp', inputForm.currentExp || '');
+        formData.append('pastExperience', inputForm.pastExperience || '');
+
+        if (Array.isArray(inputForm.purpose)) {
+            inputForm.purpose.forEach((ele) => {
+                formData.append('purpose', ele);
+
+            });
         }
-    })
-    .then(function (response) {
-        console.log('Success:', response.data);
-    })
-    .catch(function (error) {
-        console.error('Error:', error.response?.data || error);
-    });
-};
-const removeFile = (fileName, fileIndex)=>{
-    console.log('removing file:', fileName, fileIndex);
- setInputForm(prev => ({
-        ...prev, 
-        [fileName]: prev[fileName].filter((_, index) => index !== fileIndex)
-    }));
-}
-const handleArrChange=(e)=>{
-    const {name,value} = e.target;
-    if(e.key === 'Enter'){
-        e.preventDefault();
-        const valuesArr = value.split(',').map(item=> item.trim()).filter(item=>item!=='');
-        setInputForm(prev=>({
+        if (Array.isArray(inputForm.ssiScore)) {
+            inputForm.ssiScore.forEach((file) => {
+                if (file instanceof File) {
+                    formData.append('ssiScore', file);
+                }
+            });
+        }
+        // Add skills array
+        if (inputForm.topics) {
+            inputForm.topics.forEach(ele => {
+                formData.append('topics', ele)
+            });
+        }
+        if (inputForm.skills) {
+            inputForm.skills.forEach(ele => {
+                formData.append('skills', ele)
+            });
+        }
+        // Add profileFile files
+        if (Array.isArray(inputForm.profileFile)) {
+            inputForm.profileFile.forEach((file) => {
+                if (file instanceof File) {
+                    formData.append('profileFile', file);
+                }
+            });
+        }
+
+        // Add resume files
+        if (Array.isArray(inputForm.resume)) {
+            inputForm.resume.forEach((file) => {
+                if (file instanceof File) {
+                    formData.append('resume', file);
+                }
+            });
+        }
+
+
+        axios.post('https://lipin.onrender.com/personalInfo', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        })
+            .then(function (response) {
+                console.log('Success:', response.data);
+
+                if (response.data.success) {
+                    setinputRes(true);
+                    setIsLoadingNiche(true);
+                    
+                    // Make niche recommendation API call after successful personalInfo submission
+                    return axios.get('http://127.0.0.1:8000/profileAnalysis', {
+                        params: {
+                            profile_url: profileId
+                        }
+                    });
+                }
+            })
+            .then(function (nicheResponse) {
+                if (nicheResponse && nicheResponse.data) {
+                    console.log('Niche recommendation success:', nicheResponse.data);
+                    if (nicheResponse.data.success) {
+                        setIsLoadingNiche(false);
+                        navigate(`/NicheRecom`, { state: { data: nicheResponse.data, profileId:profileId } });
+                    }
+                }
+            })
+            .catch(function (error) {
+                console.error('Error:', error.response?.data || error);
+                setIsLoadingNiche(false);
+            });
+    };
+
+
+    const removeFile = (fileName, fileIndex) => {
+        console.log('removing file:', fileName, fileIndex);
+        setInputForm(prev => ({
             ...prev,
-            [name]: [...prev[name],...valuesArr]
+            [fileName]: prev[fileName].filter((_, index) => index !== fileIndex)
+        }));
+    }
+    const ITEM_HEIGHT = 48;
+    const ITEM_PADDING_TOP = 8;
+    const MenuProps = {
+        PaperProps: {
+            style: {
+                maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
+                width: 250,
+            },
+        },
+    };
+    const handleArrChange = (e) => {
+        const { name, value } = e.target;
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const valuesArr = value.split(',').map(item => item.trim()).filter(item => item !== '');
+            setInputForm(prev => ({
+                ...prev,
+                [name]: [...prev[name], ...valuesArr]
+            }))
+        }
+    }
+    // Show loading screen if niche recommendation is loading
+    if (isLoadingNiche) {
+        return <LoadingScreen message="Generating your personalized niche recommendations..." />;
+    }
+    const handleSelectChange = (e) => {
+        const { name, value } = e.target;
+        setInputForm(prev => ({
+            ...prev,
+            [name]: typeof value === 'string' ? value.split(',') : value
         }))
     }
-}
-if(inputForm){
-    console.log(inputForm)
-}
- 
+
     return (
-        <div className='Container'>
+        <div className='Container' style={{margin: '0 auto'}}>
             <main style={{ paddingLeft: '2rem', paddingRight: '2rem' }}>
                 <div className='FormMain'>
-                    <div>
+                    <div style={{width:'80%'}}>
                         <h1>Help me know you,</h1>
                         <p>Your inputs for this form will help the agent understand your persona and your goals which will help it to built a plan for your linkediIn presence.</p>
                         <div className='Inputform'>
@@ -166,8 +231,39 @@ if(inputForm){
                             </div>
                             {/* Goal */}
                             <div>
-                                <InputLabel htmlFor="my-input-4">Why do you use LinkedIn?</InputLabel>
-                                <Input name='purpose' type='text' value={inputForm.purpose} onChange={handleChange} fullWidth='true' id="my-input-4" placeholder='Building Network/Finding Job/Promoting Company/Hiring' aria-describedby="my-helper-text" />
+                                <InputLabel htmlFor="my-input-4">Purpose to optimize linkedIn</InputLabel>
+                                <div style={{ display: 'flex', gap: '1rem', width: '100%', overflow: 'scroll', scrollbarWidth: 'none', alignItems: 'center', justifyContent: 'flex-start', marginBottom: '1rem', marginTop: '0.5rem' }}>
+                                    {inputForm.purpose && inputForm.purpose.map((value, index) => (
+                                        <div key={index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: 'max-content', padding: '5px 10px', textAlign: 'center', borderRadius: '10rem', backgroundColor: '#d5d5d5ff', border: 'none', outline: 'none' }}>
+                                            <span style={{ fontSize: '0.875rem' }}>{value}</span>
+                                            <button onClick={() => removeFile('purpose', index)} style={{ backgroundColor: 'transparent', border: 'none', outline: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                                                <HighlightOffIcon fontSize="small" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <Select
+                                    labelId="demo-multiple-chip-label"
+                                    id="demo-multiple-chip"
+                                    multiple
+                                    name="purpose"
+                                    value={inputForm.purpose}
+                                    onChange={handleSelectChange}
+                                    input={<OutlinedInput id="select-multiple-chip" label="Chip" />}
+                                    MenuProps={MenuProps}
+                                >
+                                    {Nichenames.map((name, index) => (
+                                        <MenuItem
+
+                                            key={name}
+                                            value={name}
+                                        >
+                                            {name}
+
+                                        </MenuItem>
+
+                                    ))}
+                                </Select>
                             </div>
                             {/* Vision */}
                             <div>
@@ -187,7 +283,7 @@ if(inputForm){
                                     {inputForm.ssiScore && inputForm.ssiScore.map((it, index) =>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: 'max-content', padding: '5px', textAlign: 'center', borderRadius: '10rem', backgroundColor: '#d5d5d5ff', border: 'none', outline: 'none' }}>
                                             {it.name}
-                                            <button onClick={()=>removeFile('ssiScore', index)}  style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
+                                            <button onClick={() => removeFile('ssiScore', index)} style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
                                                 <HighlightOffIcon fontSize="small" />
                                             </button>
                                         </div>
@@ -208,10 +304,10 @@ if(inputForm){
                             {/* Profile Link */}
                             <div className='UploadSection'>
                                 <div style={{ display: 'flex', gap: '1rem', width: '100%', overflow: 'scroll', scrollbarWidth: 'none', alignItems: 'center', justifyContent: 'flex-start' }}>
-                                    {inputForm.profileFile && inputForm.profileFile.map((it,index) =>
+                                    {inputForm.profileFile && inputForm.profileFile.map((it, index) =>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: 'max-content', padding: '5px', textAlign: 'center', borderRadius: '10rem', backgroundColor: '#d5d5d5ff', border: 'none', outline: 'none' }}>
                                             {it.name}
-                                            <button onClick={()=>removeFile('profileFile', index)}  style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
+                                            <button onClick={() => removeFile('profileFile', index)} style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
                                                 <HighlightOffIcon fontSize="small" />
                                             </button>
                                         </div>)}
@@ -233,10 +329,10 @@ if(inputForm){
                             {/* Resume Link */}
                             <div className='UploadSection'>
                                 <div style={{ display: 'flex', gap: '1rem', width: '100%', overflow: 'scroll', scrollbarWidth: 'none', alignItems: 'center', justifyContent: 'flex-start' }}>
-                                    {inputForm.resume && inputForm.resume.map((it,index) =>
+                                    {inputForm.resume && inputForm.resume.map((it, index) =>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: 'max-content', padding: '5px', textAlign: 'center', borderRadius: '10rem', backgroundColor: '#d5d5d5ff', border: 'none', outline: 'none' }}>
                                             {it.name}
-                                            <button onClick={()=>removeFile('resume', index)} style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
+                                            <button onClick={() => removeFile('resume', index)} style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
                                                 <HighlightOffIcon fontSize="small" />
                                             </button>
                                         </div>)}
@@ -267,13 +363,13 @@ if(inputForm){
                                     placeholder='Describe your current experience'
                                     style={{ width: '100%', height: 200, border: '1px solid rgba(169 169 169 / 29%)', borderRadius: '6px', backgroundColor: 'rgba(255 255 255 / 24%)' }} fullWidth='true' id="my-input-10" aria-describedby="my-helper-text" />
                             </div>
-                              {/*Skills*/}
+                            {/*Skills*/}
                             <div>
-                                <div style={{ display: 'flex', gap: '1rem', width: '100%', overflow: 'scroll', scrollbarWidth: 'none', alignItems: 'center', justifyContent: 'flex-start' }}>
+                                <div style={{ display: 'flex', gap: '1rem', width: '100%', flexWrap:'wrap',alignItems: 'center', justifyContent: 'flex-start' }}>
                                     {inputForm.skills && inputForm.skills.map((it, index) =>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: 'max-content', padding: '5px', textAlign: 'center', borderRadius: '10rem', backgroundColor: '#d5d5d5ff', border: 'none', outline: 'none' }}>
                                             {it}
-                                            <button onClick={()=>removeFile('skills', index)}  style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
+                                            <button onClick={() => removeFile('skills', index)} style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
                                                 <HighlightOffIcon fontSize="small" />
                                             </button>
                                         </div>
@@ -290,7 +386,7 @@ if(inputForm){
                                     {inputForm.topics && inputForm.topics.map((it, index) =>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: 'max-content', padding: '5px', textAlign: 'center', borderRadius: '10rem', backgroundColor: '#d5d5d5ff', border: 'none', outline: 'none' }}>
                                             {it}
-                                            <button onClick={()=>removeFile('topics', index)}  style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
+                                            <button onClick={() => removeFile('topics', index)} style={{ backgroundColor: 'transparent', border: 'none', outline: 'none' }}>
                                                 <HighlightOffIcon fontSize="small" />
                                             </button>
                                         </div>

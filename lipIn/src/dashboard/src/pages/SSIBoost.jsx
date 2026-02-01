@@ -7,8 +7,8 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Paper from '@mui/material/Paper';
 import axios from 'axios';
-import AskAi from './components/AskAi';
-import LoadingScreen from './LoadingScreen';
+import AskAi from '../components/AskAi';
+import LoadingScreen from '../components/LoadingScreen';
 
 const SSIBoost = () => {
     const [profileId, setProfileId] = useState('')
