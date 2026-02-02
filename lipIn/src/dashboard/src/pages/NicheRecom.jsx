@@ -34,7 +34,7 @@ function NicheRecom() {
                         <button onClick={() => {
                                 setSelectNiche(it.nicheTitle)
                                 console.log("Selected Niche:", it.nicheTitle);
-                                const response = axios.post('http://127.0.0.1:8000/SelectedNiche',
+                                const response = axios.post('https://lipin.onrender.com/SelectedNiche',
                                     {
                                         profile_url: profileId,
                                         niche: 'General'
@@ -67,7 +67,7 @@ function NicheRecom() {
                             <button onClick={() => {
                                 setSelectNiche(it.nicheTitle)
                                 console.log("Selected Niche:", it.nicheTitle);
-                                const response = axios.post('http://127.0.0.1:8000/SelectedNiche',
+                                const response = axios.post('https://lipin.onrender.com/SelectedNiche',
                                     {
                                         profile_url: profileId,
                                         niche: it.nicheTitle

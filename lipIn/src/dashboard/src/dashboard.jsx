@@ -37,7 +37,7 @@ export default function Dashboard() {
     }
     if (!nicheData) {
       console.log("niche",niche)
-      axios.get('http://127.0.0.1:8000/profileBuilder', {
+      axios.get('https://lipin.onrender.com/profileBuilder', {
         params: {
           profile_url: profileId,
           niche: niche[0]

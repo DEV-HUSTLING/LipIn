@@ -131,7 +131,7 @@ function InputForm() {
                     setIsLoadingNiche(true);
                     
                     // Make niche recommendation API call after successful personalInfo submission
-                    return axios.get('http://127.0.0.1:8000/profileAnalysis', {
+                    return axios.get('https://lipin.onrender.com/profileAnalysis', {
                         params: {
                             profile_url: profileId
                         }
