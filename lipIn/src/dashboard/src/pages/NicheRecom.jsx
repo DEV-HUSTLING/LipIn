@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import '../../landingPage.css'
 import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL;
 function NicheRecom() {
         const navigate = useNavigate()
         const location = useLocation()
@@ -34,7 +36,7 @@ function NicheRecom() {
                         <button onClick={() => {
                                 setSelectNiche(it.nicheTitle)
                                 console.log("Selected Niche:", it.nicheTitle);
-                                const response = axios.post('http://127.0.0.1:8000/SelectedNiche',
+                                const response = axios.post(`${API_URL}/SelectedNiche`,
                                     {
                                         profile_url: profileId,
                                         niche: 'General'
@@ -67,7 +69,7 @@ function NicheRecom() {
                             <button onClick={() => {
                                 setSelectNiche(it.nicheTitle)
                                 console.log("Selected Niche:", it.nicheTitle);
-                                const response = axios.post('http://127.0.0.1:8000/SelectedNiche',
+                                const response = axios.post(`${API_URL}/SelectedNiche`,
                                     {
                                         profile_url: profileId,
                                         niche: it.nicheTitle

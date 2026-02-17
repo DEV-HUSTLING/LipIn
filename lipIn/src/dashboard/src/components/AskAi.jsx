@@ -1,6 +1,8 @@
 import axios from 'axios';
 import React,{useState,useEffect} from 'react'
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
+
+const API_URL = import.meta.env.VITE_API_URL;
 function AskAi({aiValue,setAskAI,profileId}) {
     const [inputValue, setInputValue] = useState('');
     const [conversation, setConversation] = useState([]) // Store full conversation (user + AI responses)
@@ -21,7 +23,7 @@ function AskAi({aiValue,setAskAI,profileId}) {
         setIsLoading(true);
         setInputValue('');
         
-        axios.post('https://lipin.onrender.com/askAIChats', {
+        axios.post(`${API_URL}/askAIChats`, {
             message: inputValue,  
             history: userMessageHistory,
             profile_url: profileId

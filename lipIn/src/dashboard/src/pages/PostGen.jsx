@@ -2,6 +2,8 @@ import axios from 'axios';
 import React,{useState, useEffect} from 'react'
 import PostPreview from '../components/PostPreview.jsx';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+
+const API_URL = import.meta.env.VITE_API_URL;
 function PostGen() {
   const [inputValue, setInputValue] = useState('');
   const [conversation, setConversation] = useState([]) // Store full conversation (user + AI responses)
@@ -42,7 +44,7 @@ function PostGen() {
             }
         });
     }
-    axios.post('http://127.0.0.1:8000/postGenerator', formData, {
+    axios.post(`${API_URL}/postGenerator`, formData, {
         headers: {
             'Content-Type': 'multipart/form-data'
         }

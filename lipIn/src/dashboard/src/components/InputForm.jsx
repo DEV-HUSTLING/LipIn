@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
+
+const API_URL = import.meta.env.VITE_API_URL;
 import '../../landingPage.css'
 import { Button } from '@mui/material'
 import { Navigate, useParams, useNavigate } from "react-router-dom";
@@ -17,15 +19,26 @@ function InputForm() {
     const { profileId } = useParams()
     const navigate = useNavigate()
     const Nichenames = [
-        "Career transitions and pivots",
-        "Leadership and management",
-        "Personal branding",
-        "Skill development and upskilling",
-        "Networking and relationship building",
-        "Work-life balance and productivity",
-        "Entrepreneurship",
-        "Public speaking and communication",
+        "I’m looking for a new job",
+        "I want to grow faster within my current organisation",
+        "I want to become a thought leader in my space",
+        "I want to attract consulting / advisory opportunities",
+
+        "I want to build an audience and monetize later",
+        "I want to earn side income through LinkedIn",
+        "I’m starting or scaling a business",
+        "I’m exploring options / not fully sure yet",
+
     ];
+    const myValueOptions = [
+        "Career guidance",
+        "Business or growth decisions",
+        "Strategy / clarity",
+        "Execution / operations",
+        "Leadership / people problems",
+        "Problem-solving in chaos",
+
+    ]
     const [isLoadingNiche, setIsLoadingNiche] = useState(false)
     const [inputRes, setinputRes] = useState(false)
     const [inputForm, setInputForm] = useState({
@@ -42,7 +55,7 @@ function InputForm() {
         currentExp: '',
         topics: [],
         skills: [],
-        pastExperience: ''
+        myValue: []
     })
     useEffect(() => {
         console.log(profileId)
@@ -73,11 +86,17 @@ function InputForm() {
         formData.append('careerVision', inputForm.careerVision || '');
         formData.append('headline', inputForm.headline || '');
         formData.append('currentExp', inputForm.currentExp || '');
-        formData.append('pastExperience', inputForm.pastExperience || '');
+        formData.append('myValue', inputForm.myValue || '');
 
         if (Array.isArray(inputForm.purpose)) {
             inputForm.purpose.forEach((ele) => {
                 formData.append('purpose', ele);
+
+            });
+        }
+        if (Array.isArray(inputForm.myValue)) {
+            inputForm.purpose.forEach((ele) => {
+                formData.append('myValue', ele);
 
             });
         }
@@ -118,7 +137,7 @@ function InputForm() {
         }
 
 
-        axios.post('https://lipin.onrender.com/personalInfo', formData, {
+        axios.post(`${API_URL}/personalInfo`, formData, {
             headers: {
                 'Content-Type': 'multipart/form-data'
             }
@@ -129,9 +148,9 @@ function InputForm() {
                 if (response.data.success) {
                     setinputRes(true);
                     setIsLoadingNiche(true);
-                    
+
                     // Make niche recommendation API call after successful personalInfo submission
-                    return axios.get('http://127.0.0.1:8000/profileAnalysis', {
+                    return axios.get(`${API_URL}/profileAnalysis`, {
                         params: {
                             profile_url: profileId
                         }
@@ -143,7 +162,7 @@ function InputForm() {
                     console.log('Niche recommendation success:', nicheResponse.data);
                     if (nicheResponse.data.success) {
                         setIsLoadingNiche(false);
-                        navigate(`/NicheRecom`, { state: { data: nicheResponse.data, profileId:profileId } });
+                        navigate(`/NicheRecom`, { state: { data: nicheResponse.data, profileId: profileId } });
                     }
                 }
             })
@@ -195,10 +214,10 @@ function InputForm() {
     }
 
     return (
-        <div className='Container' style={{margin: '0 auto'}}>
+        <div className='Container' style={{ margin: '0 auto' }}>
             <main style={{ paddingLeft: '2rem', paddingRight: '2rem' }}>
                 <div className='FormMain'>
-                    <div style={{width:'80%'}}>
+                    <div style={{ width: '80%' }}>
                         <h1>Help me know you,</h1>
                         <p>Your inputs for this form will help the agent understand your persona and your goals which will help it to built a plan for your linkediIn presence.</p>
                         <div className='Inputform'>
@@ -365,7 +384,7 @@ function InputForm() {
                             </div>
                             {/*Skills*/}
                             <div>
-                                <div style={{ display: 'flex', gap: '1rem', width: '100%', flexWrap:'wrap',alignItems: 'center', justifyContent: 'flex-start' }}>
+                                <div style={{ display: 'flex', gap: '1rem', width: '100%', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-start' }}>
                                     {inputForm.skills && inputForm.skills.map((it, index) =>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: 'max-content', padding: '5px', textAlign: 'center', borderRadius: '10rem', backgroundColor: '#d5d5d5ff', border: 'none', outline: 'none' }}>
                                             {it}
@@ -399,11 +418,33 @@ function InputForm() {
 
                             {/*Additional Information */}
                             <div>
-                                <InputLabel htmlFor="my-input-13">Past Professional Experiences</InputLabel>
+                                <InputLabel htmlFor="my-input-13">What do peoplle already come to you for?</InputLabel>
+                                <Select
+                                    labelId="demo-multiple-chip-label"
+                                    id="demo-multiple-chip"
+                                    multiple
+                                    name="myValue"
+                                    value={inputForm.myValue}
+                                    onChange={handleSelectChange}
+                                    input={<OutlinedInput id="select-multiple-chip" label="Chip" />}
+                                    MenuProps={MenuProps}
+                                >
+                                    {myValueOptions.map((name, index) => (
+                                        <MenuItem
+
+                                            key={name}
+                                            value={name}
+                                        >
+                                            {name}
+
+                                        </MenuItem>
+
+                                    ))}
+                                </Select>
                                 <TextareaAutosize
                                     type='textarea'
-                                    value={inputForm.pastExperience}
-                                    name='pastExperience'
+                                    value={inputForm.myValue}
+                                    name='myValue'
                                     onChange={handleChange}
                                     maxRows={8}
                                     aria-label="maximum height"
