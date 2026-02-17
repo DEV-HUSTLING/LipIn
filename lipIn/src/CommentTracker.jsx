@@ -2,7 +2,7 @@ import React, { use, useEffect, useState } from 'react'
 import { app } from './auth/firebase.jsx';
 import dayjs from 'dayjs';
 import { browserTheme } from './helpers/bowserTheme.jsx';
-import { collection, getDocs, query, orderBy, limit, getFirestore, where } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, limit, getFirestore, where, onSnapshot } from "firebase/firestore";
 import './App.css'
 import { DemoContainer } from '@mui/x-date-pickers/internals/demo';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -53,6 +53,57 @@ function CommentTracker() {
             }
         });
     }, [])
+
+    // Real-time listener for today's comments
+    useEffect(() => {
+        if (!url) return;
+        
+        const profileId = url?.split('/in/')[1]?.split('/')[0];
+        if (!profileId) {
+            console.error('Could not extract profile ID from URL:', url);
+            return;
+        }
+
+        // Use dayjs .toDate() to properly convert to JS Date, then normalize to midnight
+        const today = todayDate.toDate ? todayDate.toDate() : new Date(todayDate);
+        today.setHours(0, 0, 0, 0);
+        const numDate = today.getTime();
+
+        console.log("Setting up real-time listener for profile:", profileId, "date:", numDate, "readable:", new Date(numDate).toLocaleDateString());
+
+        const commentRef = collection(db, "comments", profileId, "items");
+        const todayQuery = query(
+            commentRef,
+            where('createdAt', "==", numDate)
+        );
+
+        // Real-time listener - updates automatically when comments are added
+        const unsubscribe = onSnapshot(todayQuery, (snapshot) => {
+            // Deduplicate comments based on text and timestamp
+            const uniqueComments = new Map();
+            
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                if (data.text && data.text.trim() !== "") {
+                    const key = `${data.text.trim()}_${data.timestamp || data.createdAt}`;
+                    uniqueComments.set(key, data);
+                }
+            });
+            
+            const count = uniqueComments.size;
+            const dateString = new Date(numDate).toLocaleDateString('en-US');
+            console.log("Real-time update - Today's comments (deduplicated):", count, "for date:", dateString);
+            setDailyCounts(prev => ({ ...prev, [dateString]: count }));
+            setLoading(false);
+        }, (error) => {
+            console.error("Error in real-time listener:", error);
+            setLoading(false);
+        });
+
+        // Cleanup listener on unmount or when dependencies change
+        return () => unsubscribe();
+    }, [url, db, todayDate]);
+
     const fetchComments = async (numDate) => {
         try {
             // Extract profile ID from URL string
@@ -62,7 +113,6 @@ function CommentTracker() {
                 return;
             }
             const commentRef = collection(db, "comments", profileId, "items");
-            const counts = {}
             // get todays comments
             const todayQuery = query(
                 commentRef,
@@ -70,23 +120,22 @@ function CommentTracker() {
                 where('createdAt', "==", numDate)
             )
             const todayquerySnapshot = await getDocs(todayQuery)
+            
+            // Deduplicate comments
+            const uniqueComments = new Map();
             todayquerySnapshot.forEach((doc) => {
                 const data = doc.data()
                 if (!data.text || data.text.trim() === "") {
                     return
                 }
-                const date = new Date(numDate);
-                const dateString = date.toLocaleDateString('en-US');
-                if (counts[dateString]) {
-                    counts[dateString]++
-                }
-                else {
-                    counts[dateString] = 1
-                }
-                setDailyCounts({ ...counts })
+                const key = `${data.text.trim()}_${data.timestamp || data.createdAt}`;
+                uniqueComments.set(key, data);
             })
-
-
+            
+            const count = uniqueComments.size;
+            const date = new Date(numDate);
+            const dateString = date.toLocaleDateString('en-US');
+            setDailyCounts(prev => ({ ...prev, [dateString]: count }));
 
         } catch (error) {
             console.error("Error fetching comments:", error);
@@ -134,16 +183,19 @@ function CommentTracker() {
             );
 
             const todayquerySnapshot = await getDocs(todayQuery);
-            let counter = 0;
-
+            
+            // Deduplicate comments
+            const uniqueComments = new Map();
             todayquerySnapshot.forEach((doc) => {
                 const data = doc.data();
                 if (!data.text || data.text.trim() === "") {
                     return;
                 }
-                counter += 1;
+                const key = `${data.text.trim()}_${data.timestamp || data.createdAt}`;
+                uniqueComments.set(key, data);
             });
 
+            const counter = uniqueComments.size;
             setFinalCounts(counter);
         } catch (error) {
             console.error("Error fetching comments:", error);
@@ -153,16 +205,64 @@ function CommentTracker() {
     };
 
     useEffect(() => {
-        console.log("7 * 24 * 60 * 60 * 1000");
+        console.log("Setting up fetch for date change");
         if (url) {
-            const today = new Date(todayDate);
+            const today = todayDate.toDate ? todayDate.toDate() : new Date(todayDate);
             today.setHours(0, 0, 0, 0);
             const numDate = today.getTime();
             fetchComments(numDate);
-
         }
-    }, [url, db, todayDate])
-    // const sortedDates = Object.keys(dailycounts).sort((a, b) => b.localeCompare(a));
+    }, [todayDate])  // Only re-fetch when date changes, not on every render
+    
+    // Real-time listener for period counts (7 days / 30 days)
+    useEffect(() => {
+        if (!url) return;
+        
+        const profileId = url?.split('/in/')[1]?.split('/')[0];
+        if (!profileId) {
+            console.error('Could not extract profile ID from URL:', url);
+            return;
+        }
+
+        const today = todayDate.toDate ? todayDate.toDate() : new Date(todayDate);
+        today.setHours(0, 0, 0, 0);
+        const numDate = today.getTime();
+
+        const periodStart = new Date(today.getTime() - periodSelected);
+        periodStart.setHours(0, 0, 0, 0);
+        const startDate = periodStart.getTime();
+
+        console.log("Setting up period listener for:", periodSelected / (24 * 60 * 60 * 1000), "days");
+
+        const commentRef = collection(db, "comments", profileId, "items");
+        const periodQuery = query(
+            commentRef,
+            where('createdAt', "<=", numDate),
+            where('createdAt', ">=", startDate)
+        );
+
+        const unsubscribe = onSnapshot(periodQuery, (snapshot) => {
+            // Deduplicate comments
+            const uniqueComments = new Map();
+            
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                if (data.text && data.text.trim() !== "") {
+                    const key = `${data.text.trim()}_${data.timestamp || data.createdAt}`;
+                    uniqueComments.set(key, data);
+                }
+            });
+            
+            const count = uniqueComments.size;
+            console.log("Real-time period update - Count (deduplicated):", count);
+            setFinalCounts(count);
+        }, (error) => {
+            console.error("Error in period listener:", error);
+        });
+
+        return () => unsubscribe();
+    }, [url, db, todayDate, periodSelected]);
+
     // Load initial 7 days count
     useEffect(() => {
         const fetchInitialCounts = async () => {
@@ -197,16 +297,19 @@ function CommentTracker() {
                 );
 
                 const initialSnapshot = await getDocs(initialQuery);
-                let counter = 0;
-
+                
+                // Deduplicate comments
+                const uniqueComments = new Map();
                 initialSnapshot.forEach((doc) => {
                     const data = doc.data();
                     if (!data.text || data.text.trim() === "") {
                         return;
                     }
-                    counter += 1;
+                    const key = `${data.text.trim()}_${data.timestamp || data.createdAt}`;
+                    uniqueComments.set(key, data);
                 });
 
+                const counter = uniqueComments.size;
                 setFinalCounts(counter);
                 console.log("Initial 7-day count set to:", counter);
 
@@ -258,7 +361,7 @@ function CommentTracker() {
                     </div>
 
                     <span className='commentValue' style={{ color: 'rgb(228, 90, 146)' }} >
-                        {dailycounts[new Date(todayDate).toLocaleDateString('en-US')]}
+                        {dailycounts[(todayDate.toDate ? todayDate.toDate() : new Date(todayDate)).toLocaleDateString('en-US')] ?? 0}
                     </span>
                 </div>
                 <div className='commentHist' style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-evenly', color: 'black' }}>

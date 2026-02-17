@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import '../landingPage.css'
 import { Routes, Route, Link, useParams, useLocation } from "react-router-dom"
-import SSIBoost from './pages/SSIBoost';
 import homeImg from '../../../public/customAssets/home.png';
+import ProfileAnalysis from './pages/ProfileAnalysis.jsx';
 import SSIboost from '../../../public/customAssets/SSIBoost.png';
 import PostGen from './pages/PostGen';
 import ProfileBuilder from './pages/ProfileBuilder.jsx';
 import LoadingScreen from './components/LoadingScreen';
 import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL;
+
 export default function Dashboard() {
   const { profileId } = useParams();
   const location = useLocation();
@@ -15,8 +18,9 @@ export default function Dashboard() {
   const [nicheData, setNicheData] = useState(null)
   const [isLoadingNiche, setIsLoadingNiche] = useState(true)
   const niche = useState(location.state?.niche)
+  const [profileData, setProfileData] = useState(null);
 
-  useEffect(() => {
+  useEffect(async() => {
     console.log(location.pathname);
     // Set profileId from URL params if available
     if (profileId) {
@@ -36,8 +40,17 @@ export default function Dashboard() {
       });
     }
     if (!nicheData) {
+     axios.get(`${API_URL}/profile_analyst/score_profile`, {
+            params: {
+                profile_url: profileId
+            }
+        }).then((res) => {
+            setProfileData(res.data)
+        })
+        .catch((error) => {            console.error('Error fetching profile analysis:', error.response?.data || error);
+        });
       console.log("niche",niche)
-      axios.get('https://lipin.onrender.com/profileBuilder', {
+       axios.get(`${API_URL}/profileBuilder`, {
         params: {
           profile_url: profileId,
           niche: niche[0]
@@ -55,9 +68,9 @@ export default function Dashboard() {
           setIsLoadingNiche(false);
         });
     }
-
+    
   }, [profileId]);
-  if (isLoadingNiche) {
+  if (isLoadingNiche & !profileData) {
     return <LoadingScreen message="Generating your personalized niche recommendations..." />;
   }
   return (
@@ -84,14 +97,9 @@ export default function Dashboard() {
         position: 'fixed',
       }}>
         <h3 style={{ fontSize: '3rem !important' }}><span style={{ color: 'black', fontWeight: 'normal' }}>Lip</span><span style={{ color: '#F4287B', fontWeight: 'bold' }}>In</span></h3>
-
-        <Link to={`/dashboard/${currentProfileId}`} className={location.pathname === `/dashboard/${currentProfileId}` ? 'dashboard_link_active' : ''} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
-          <img src={homeImg} width={"30px"} height={'30px'} />
-          <p>Home</p>
-        </Link>
         {currentProfileId && (
           <>
-            <Link to={`/dashboard/${currentProfileId}/analytics`} className={location.pathname === `/dashboard/${currentProfileId}/analytics` ? 'dashboard_link_active' : ''} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+            <Link to={`/dashboard/${currentProfileId}/analysis`} className={location.pathname === `/dashboard/${currentProfileId}/analysis` ? 'dashboard_link_active' : ''} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
               <img src={SSIboost} width={"30px"} height={'30px'} />
               <p>Analytics</p>
             </Link>
@@ -110,9 +118,8 @@ export default function Dashboard() {
       <div style={{width:'75%', marginLeft:'20%'}}>
         <div>
           <Routes>
-            <Route index element={<Dashboard />} />
+            <Route path='/analysis' element={<ProfileAnalysis data={profileData}/>}/>
             <Route path="/ProfileBuilder" element={<ProfileBuilder data={nicheData} />} />
-            <Route path="/analytics" element={<SSIBoost />} />
             <Route path="/postGen" element={<PostGen />} />
           </Routes>
         </div>

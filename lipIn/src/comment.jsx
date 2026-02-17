@@ -28,8 +28,15 @@ const Comment = ({ postEl, cmntArea, getCmntArea }) => {
   const [url, setUrl] = useState("");
   const db = getFirestore(app)
   const isSaving = useRef(false);
+  const isGenerating = useRef(false);
+  const lastSavedComment = useRef({ text: '', timestamp: 0 });
   const [actualCmntArea, setActualCmntArea] = useState(cmntArea);
-  const [cmntBtn,setCmntBtn] = useState(postEl?.querySelector('[data-view-name="comment-post"]'))
+  // Find the submit button - look for the actual LinkedIn comment submit button
+  const [cmntBtn,setCmntBtn] = useState(
+    postEl?.querySelector('.comments-comment-box__submit-button--cr') ||
+    postEl?.querySelector('[class*="comments-comment-box__submit-button"]') ||
+    postEl?.querySelector('[data-view-name="comment-post"]')
+  )
 
 // Detect LinkedIn page theme (light/dark) and respond to changes
 useEffect(() => {
@@ -172,58 +179,147 @@ useEffect(() => {
 
 // Get profile URL from storage
 useEffect(() => {
+  console.log('🔍 Attempting to get profile URL from storage...');
   chrome.storage.local.get('profileURl', (result) => {
+    console.log('📦 Storage result:', result);
     if (result.profileURl) {
       const extractedUrl = result.profileURl.split("/in/")[1]?.split("/")[0];
+      console.log('✅ Extracted profile slug:', extractedUrl);
       setUrl(extractedUrl);
+    } else {
+      console.log('❌ No profileURl found in storage');
     }
   });
 }, []);
 
-// Tries to listen directly on the comment button
+// Event delegation to catch comment button clicks (removed direct listener to prevent duplicates)
 useEffect(() => {
-  if (!cmntBtn || !url) return;
-
-  const handler = async (e) => {
-    if (isSaving.current) {
-      console.log('Already saving, skipping...');
+  // Always set up the listener, get URL inside the handler
+  console.log('🎧 Setting up comment submit listener, cmntBtn:', cmntBtn);
+  
+  const handleDocumentClick = async (e) => {
+    const clickedElement = e.target;
+    let buttonElement = clickedElement.closest('button');
+    
+    // Log what was clicked for debugging
+    console.log('🔍 Click on:', clickedElement.className, 'text:', clickedElement.textContent?.trim());
+    
+    // If we clicked the span directly, get its parent button
+    if (!buttonElement && clickedElement.classList?.contains('artdeco-button__text')) {
+      buttonElement = clickedElement.parentElement;
+      console.log('📍 Found parent button from span:', buttonElement?.className);
+    }
+    
+    if (!buttonElement) {
       return;
     }
     
-    console.log('✅ Comment button clicked - processing...');
+    // Get button info
+    const classList = buttonElement.className || '';
+    const buttonText = buttonElement.textContent?.trim().toLowerCase() || '';
     
-    // Get current text from comment area (including any user edits)
-    const text = actualCmntArea?.textContent || 
-                actualCmntArea?.innerText || 
-                lastInsertedComment.current;
+    console.log('🔍 Button check:', { 
+      classList: classList.substring(0, 100), 
+      buttonText: buttonText.substring(0, 20),
+      hasCommentClass: classList.includes('comments-comment-box__submit-button')
+    });
     
-    console.log('📝 Text from comment area at click time:', text);
+    // LinkedIn's submit button - check for the specific class
+    const isPostButton = 
+      classList.includes('comments-comment-box__submit-button--cr') ||
+      classList.includes('comments-comment-box__submit-button');
+    
+    if (!isPostButton) {
+      console.log('❌ Not a comment submit button');
+      return;
+    }
+    
+    // CRITICAL: Stop event propagation immediately to prevent duplicate handlers
+    e.stopImmediatePropagation();
+    
+    console.log('✅ Comment submit button detected!');
+    
+    // Check if this button is related to our post
+    const isInOurPost = postEl?.contains(buttonElement);
+    if (!isInOurPost) {
+      console.log('❌ Button not in our post, ignoring');
+      return;
+    }
+    
+    console.log('✅ Button is in our post!');
+    
+    if (isSaving.current || isGenerating.current) {
+      console.log('⏸️ Already saving or generating, skipping...');
+      return;
+    }
+    
+    // Get URL directly from storage at save time
+    const storageResult = await new Promise(resolve => {
+      chrome.storage.local.get('profileURl', resolve);
+    });
+    
+    const profileUrl = storageResult.profileURl;
+    if (!profileUrl) {
+      console.error('❌ No profile URL in storage');
+      return;
+    }
+    
+    const profileSlug = profileUrl.split("/in/")[1]?.split("/")[0];
+    if (!profileSlug) {
+      console.error('❌ Could not extract profile slug from:', profileUrl);
+      return;
+    }
+    
+    console.log('✅ Profile slug for saving:', profileSlug);
+    
+    // ONLY get text from the actual comment area for THIS post
+    const text = actualCmntArea?.textContent || actualCmntArea?.innerText || '';
+    
+    console.log('📝 Text to save:', text);
     
     if (!text || text.trim() === '' || text === 'Generating comment...') {
-      console.log('No valid text to save');
+      console.log('❌ No valid text to save');
+      return;
+    }
+    
+    // DUPLICATE PREVENTION: Check if we just saved this exact comment recently (within 3 seconds)
+    const now = Date.now();
+    const trimmedText = text.trim();
+    if (lastSavedComment.current.text === trimmedText && 
+        (now - lastSavedComment.current.timestamp) < 5000) {
+      console.log('🚫 DUPLICATE PREVENTED: Same comment saved recently', {
+        timeSinceLastSave: now - lastSavedComment.current.timestamp,
+        lastSaved: lastSavedComment.current.text.substring(0, 50)
+      });
       return;
     }
     
     isSaving.current = true;
-    console.log('🔥 Saving to Firebase...');
-
+    console.log('🔥 Saving to Firebase...', 'Slug:', profileSlug);
+    
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const dateOnly = today.getTime();
-      console.log(url,'profile slug');
-      await addDoc(
-        collection(db, "comments", url, "items"),
+      
+      const docRef = await addDoc(
+        collection(db, "comments", profileSlug, "items"),
         {
           text: text.trim(),
           createdAt: dateOnly,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         }
       );
       
-      console.log('🎉 Successfully saved to Firebase');
+      console.log('🎉 Successfully saved to Firebase! Doc ID:', docRef.id);
       lastInsertedComment.current = '';
-
+      
+      // Update last saved comment to prevent duplicates
+      lastSavedComment.current = {
+        text: text.trim(),
+        timestamp: Date.now()
+      };
+      
     } catch (error) {
       console.error('❌ Firebase save error:', error);
     } finally {
@@ -232,77 +328,10 @@ useEffect(() => {
       }, 1000);
     }
   };
-
-  // Listen directly on the cmntBtn element
-  cmntBtn.addEventListener('click', handler);
-  return () => cmntBtn.removeEventListener('click', handler);
-}, [cmntBtn, url, db, actualCmntArea]);
-
-// Backup: Event delegation to catch comment button clicks
-useEffect(() => {
-  if (!url) return;
-  
-  const handleDocumentClick = async (e) => {
-    const clickedElement = e.target.closest('button');
-    if (!clickedElement) return;
-    const dataViewName = clickedElement.getAttribute('data-view-name');
-    if (dataViewName === 'comment-post') {
-      console.log('🎯 Comment button clicked via delegation');
-      
-      // Check if this button is related to our post
-      const isInOurPost = postEl?.contains(clickedElement);
-      if (!isInOurPost) {
-        console.log('Button not in our post, ignoring');
-        return;
-      }
-      
-      if (isSaving.current) {
-        console.log('Already saving, skipping...');
-        return;
-      }
-      
-      // Get current text from comment area (including any user edits)
-      const text = actualCmntArea?.textContent || 
-                  actualCmntArea?.innerText || 
-                  lastInsertedComment.current;      
-      if (!text || text.trim() === '' || text === 'Generating comment...') {
-        console.log('❌ No valid text to save');
-        return;
-      }
-      
-      isSaving.current = true;
-      console.log('🔥 Saving to Firebase via delegation...');
-      
-      try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const dateOnly = today.getTime();
-        
-        await addDoc(
-          collection(db, "comments", url, "items"),
-          {
-            text: text.trim(),
-            createdAt: dateOnly,
-            timestamp: new Date().toISOString(),
-          }
-        );
-        
-        console.log('🎉 Successfully saved via delegation:', text.trim());
-        lastInsertedComment.current = '';
-        
-      } catch (error) {
-        console.error('❌ Delegation save error:', error);
-      } finally {
-        setTimeout(() => {
-          isSaving.current = false;
-        }, 1000);
-      }
-    }
-  };
   
   document.addEventListener('click', handleDocumentClick, true);
   return () => document.removeEventListener('click', handleDocumentClick, true);
-}, [url, actualCmntArea, db, postEl]);
+}, [actualCmntArea, db, postEl]);
 
 // When comment text changes, insert into actual comment area
   useEffect(() => {
@@ -310,16 +339,20 @@ useEffect(() => {
       setLoader(false);
       actualCmntArea.textContent = aiCmnt;
       lastInsertedComment.current = aiCmnt;
-      actualCmntArea.focus();
-      try {
-        const range = document.createRange();
-        const selection = window.getSelection();
-        range.selectNodeContents(actualCmntArea);
-        range.collapse(false);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      } catch (e) {
-        console.log('Could not move cursor:', e);
+      
+      // Only try to set cursor if element is still in document
+      if (document.contains(actualCmntArea)) {
+        actualCmntArea.focus();
+        try {
+          const range = document.createRange();
+          const selection = window.getSelection();
+          range.selectNodeContents(actualCmntArea);
+          range.collapse(false);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        } catch (e) {
+          console.log('Could not move cursor:', e);
+        }
       }
     }
   }, [aiCmnt, actualCmntArea]);
@@ -330,6 +363,9 @@ useEffect(() => {
     e.stopPropagation(); 
     setLoader(true);
     setCmntTool(false);
+    isGenerating.current = true; // Set generating flag
+    lastInsertedComment.current = ''; // Clear any previous comment to prevent cross-post saves
+    console.log('🎨 Starting comment generation...');
     
     // Check if postEl has the specific structure that doesn't need button finding
     const hasSpecificStructure = postEl?.classList?.contains('feed-shared-update-v2') && 
@@ -337,20 +373,36 @@ useEffect(() => {
                                  postEl?.getAttribute('data-urn');
     
     if (hasSpecificStructure) {
-      console.log('✅ PostEl has specific structure, generating comment directly without button search');
+      console.log('✅ PostEl has specific structure, generating comment directly');
       // Generate comment directly without waiting for button
       const postContent = getPostDescription(postEl);
+      
+      // Still try to find and set the button for later click detection
+      setTimeout(() => {
+        const btn = postEl?.querySelector('.comments-comment-box__submit-button--cr') ||
+                    postEl?.querySelector('button.comments-comment-box__submit-button') ||
+                    postEl?.querySelector('button[class*="comments-comment-box__submit-button"]');
+        if (btn) {
+          console.log('✅ Found comment button for click tracking:', btn);
+          setCmntBtn(btn);
+        } else {
+          console.log('⚠️ Comment button not found yet, will rely on event delegation');
+        }
+      }, 3000);
+      
       if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
         chrome.runtime.sendMessage({
           action: 'generateComment',
           text: `${postContent}\n${userCmntPrompt}\n${tonePrompt}`
         }, (res) => {
+          isGenerating.current = false; // Clear generating flag
           if (chrome.runtime.lastError) {
             console.warn('chrome.runtime.lastError:', chrome.runtime.lastError);
             setLoader(false);
           } else {
             if (res && res.comments) {
               setAiComnt(res.comments);
+              console.log('✅ Comment generated successfully');
             } else {
               setLoader(false);
             }
@@ -359,18 +411,21 @@ useEffect(() => {
       } else {
         setLoader(false);
       }
-      return; // Exit early, no need to search for button
+      return; // Exit early, comment generation started
     }
     
     // Original logic: wait 3 seconds to find the comment button
     setTimeout(() => {
       
       let foundBtn = null;
-      // Strategy 1: Direct search in postEl
-      foundBtn = postEl?.querySelector('[data-view-name="comment-post"]');
-      console.log('Strategy 1 - Direct postEl search:', foundBtn);
+      // Strategy 1: Look for the actual LinkedIn comment submit button
+      foundBtn = postEl?.querySelector('.comments-comment-box__submit-button--cr') ||
+                 postEl?.querySelector('button.comments-comment-box__submit-button') ||
+                 postEl?.querySelector('button[class*="comments-comment-box__submit-button"]');
+      console.log('Strategy 1 - Looking for comment submit button:', foundBtn);
       
       if (foundBtn) {
+        console.log('✅ Found comment button with Strategy 1', foundBtn);
         setCmntBtn(foundBtn);
           const postContent = getPostDescription(postEl);
         if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
@@ -378,12 +433,14 @@ useEffect(() => {
             action: 'generateComment',
             text: `${postContent}\n${userCmntPrompt}\n${tonePrompt}`
           }, (res) => {
+            isGenerating.current = false; // Clear generating flag
             if (chrome.runtime.lastError) {
               console.warn('chrome.runtime.lastError:', chrome.runtime.lastError);
               setLoader(false);
             } else {
               if (res && res.comments) {
                 setAiComnt(res.comments);
+                console.log('✅ Comment generated successfully');
               } else {
                 setLoader(false);
               }
@@ -505,7 +562,12 @@ Write a comment that feels unmistakably personal — something only someone with
         e.preventDefault();
         e.stopPropagation(); 
         console.log('Main LipIn button clicked, toggling panel');
-        setCmntBtn(postEl?.querySelector('[data-view-name="comment-post"]'))
+        // Look for the comment submit button with correct selector
+        setCmntBtn(
+          postEl?.querySelector('.comments-comment-box__submit-button--cr') ||
+          postEl?.querySelector('[class*="comments-comment-box__submit-button"]') ||
+          postEl?.querySelector('[data-view-name="comment-post"]')
+        )
         setCmntTool(!cmntTool)
       }} className="LipIn-comment-post-button" style={{ background: 'transparent', border: 'none', padding: '8px', cursor: 'pointer', boxShadow:'0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)' }}>
         <img src={lipInLogo} alt="LipIn Logo" style={{ width: '2rem', height: '2rem', marginLeft: '5px' }} />

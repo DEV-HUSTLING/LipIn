@@ -1,5 +1,78 @@
 import './content.css'; // Import content-specific CSS
 import { CommentComponent } from './utils.jsx'
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, addDoc } from "firebase/firestore";
+
+// Initialize Firebase for comment tracking
+const firebaseConfig = {
+  apiKey: "AIzaSyBaNAHhmMK3I7x1cXXSWoOtQxqfiGsJTNQ",
+  authDomain: "lipin-5ab71.firebaseapp.com",
+  projectId: "lipin-5ab71",
+  storageBucket: "lipin-5ab71.firebasestorage.app",
+  messagingSenderId: "308608519140",
+  appId: "1:308608519140:web:c71b717860147e2c1d15f1",
+  measurementId: "G-CLZV2VJDMR"
+};
+const firebaseApp = initializeApp(firebaseConfig, 'content-script');
+const db = getFirestore(firebaseApp);
+
+let isSavingComment = false;
+
+// Function to save comment to Firebase
+async function saveCommentToFirebase(commentText, postContainer) {
+    if (isSavingComment) {
+        console.log('Already saving comment, skipping...');
+        return;
+    }
+    
+    if (!commentText || commentText.trim() === '' || commentText === 'Generating comment...') {
+        console.log('❌ No valid comment text to save');
+        return;
+    }
+
+    try {
+        // Get profile URL from storage
+        const result = await new Promise(resolve => {
+            chrome.storage.local.get('profileURl', resolve);
+        });
+        
+        if (!result.profileURl) {
+            console.error('❌ No profile URL in storage');
+            return;
+        }
+        
+        const profileSlug = result.profileURl.split("/in/")[1]?.split("/")[0];
+        if (!profileSlug) {
+            console.error('❌ Could not extract profile slug');
+            return;
+        }
+        
+        isSavingComment = true;
+        console.log('🔥 Saving comment to Firebase for:', profileSlug);
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dateOnly = today.getTime();
+        
+        const docRef = await addDoc(
+            collection(db, "comments", profileSlug, "items"),
+            {
+                text: commentText.trim(),
+                createdAt: dateOnly,
+                timestamp: new Date().toISOString(),
+            }
+        );
+        
+        console.log('🎉 Comment saved to Firebase! Doc ID:', docRef.id);
+        
+    } catch (error) {
+        console.error('❌ Firebase save error:', error);
+    } finally {
+        setTimeout(() => {
+            isSavingComment = false;
+        }, 1000);
+    }
+}
 
 function addIfNotExists(post, postContainer) {
     if (!post || !(post instanceof Element)) return;
@@ -13,6 +86,35 @@ function scanAndAddButtons() {
     // check the comment click
     document.addEventListener('click', function (e) {
         console.log('Click detected on:', e.target);
+        
+        // Check if Post button was clicked (to save comment to Firebase)
+        const postButton = e.target.closest('button');
+        if (postButton) {
+            const classList = postButton.className || '';
+            const buttonText = postButton.textContent?.trim().toLowerCase() || '';
+            
+            const isPostCommentButton = 
+                classList.includes('comments-comment-box__submit-button') ||
+                (buttonText === 'post' && classList.includes('artdeco-button--primary'));
+            
+            if (isPostCommentButton) {
+                console.log('🎯 POST COMMENT BUTTON CLICKED!');
+                
+                // Find the comment text from the nearby editor
+                const commentBox = postButton.closest('.comments-comment-box') || 
+                                   postButton.closest('[class*="comments-comment"]');
+                if (commentBox) {
+                    const editor = commentBox.querySelector('[contenteditable="true"]') ||
+                                   commentBox.querySelector('.ql-editor') ||
+                                   commentBox.querySelector('p');
+                    if (editor) {
+                        const commentText = editor.textContent || editor.innerText;
+                        console.log('📝 Comment text found:', commentText);
+                        saveCommentToFirebase(commentText, commentBox);
+                    }
+                }
+            }
+        }
         const cmntBtn = e.target.closest('[data-view-name="feed-comment-button"]')
         const cmntBtn2 = e.target.closest('button.comment-button')
         const cmntBtn3 = e.target.closest('button[aria-label*="comment"]')
