@@ -5,7 +5,12 @@ import random
 import argparse
 import os
 import datetime
+
 BROWSER_DATA_DIR = os.path.join(os.path.dirname(__file__), "linkedin_browser_data")
+
+# Get Playwright browser path from environment variable or use default
+PLAYWRIGHT_BROWSERS_PATH = os.environ.get('PLAYWRIGHT_BROWSERS_PATH', os.path.expanduser('~/.cache/ms-playwright'))
+CHROMIUM_EXECUTABLE = os.path.join(PLAYWRIGHT_BROWSERS_PATH, 'chromium_headless_shell-1200', 'chrome-headless-shell-linux64', 'chrome-headless-shell') if os.name != 'nt' else None
 date = datetime.datetime.now()
 BROWSER_ARGS = [
     "--disable-blink-features=AutomationControlled",
@@ -850,13 +855,16 @@ def _extract_recent_activity(page, profile_url):
 def setup_session():
     """One-time setup: opens a browser for manual login. Session is persisted."""
     with sync_playwright() as p:
-        browser = p.chromium.launch_persistent_context(
-            user_data_dir=BROWSER_DATA_DIR,
-            headless=False,
-            args=BROWSER_ARGS,
-            viewport=VIEWPORT,
-            user_agent=USER_AGENT,
-        )
+        launch_options = {
+            "user_data_dir": BROWSER_DATA_DIR,
+            "headless": False,
+            "args": BROWSER_ARGS,
+            "viewport": VIEWPORT,
+            "user_agent": USER_AGENT,
+        }
+        if CHROMIUM_EXECUTABLE and os.path.exists(CHROMIUM_EXECUTABLE):
+            launch_options["executable_path"] = CHROMIUM_EXECUTABLE
+        browser = p.chromium.launch_persistent_context(**launch_options)
         page = browser.new_page()
         page.goto("https://www.linkedin.com/login")
 
@@ -890,13 +898,16 @@ def scrape_profile(profile_url: str, headless: bool = True) -> dict:
     result = {"profile_url": profile_url}
 
     with sync_playwright() as p:
-        browser = p.chromium.launch_persistent_context(
-            user_data_dir=BROWSER_DATA_DIR,
-            headless=headless,
-            args=BROWSER_ARGS,
-            viewport=VIEWPORT,
-            user_agent=USER_AGENT,
-        )
+        launch_options = {
+            "user_data_dir": BROWSER_DATA_DIR,
+            "headless": headless,
+            "args": BROWSER_ARGS,
+            "viewport": VIEWPORT,
+            "user_agent": USER_AGENT,
+        }
+        if CHROMIUM_EXECUTABLE and os.path.exists(CHROMIUM_EXECUTABLE):
+            launch_options["executable_path"] = CHROMIUM_EXECUTABLE
+        browser = p.chromium.launch_persistent_context(**launch_options)
 
         page = browser.new_page()
 
