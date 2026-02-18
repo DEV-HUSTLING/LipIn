@@ -305,9 +305,17 @@ Include "current" field with the user's actual data and "suggestions" array with
 
                 if "experience" in parsed_profile_builder:
                     if isinstance(parsed_profile_builder["experience"], dict):
+                        # Keep the LLM-generated suggestions in "positions" 
                         parsed_profile_builder["experience"]["current"] = currentExp or []
+                        # Ensure positions key exists
+                        if "positions" not in parsed_profile_builder["experience"]:
+                            parsed_profile_builder["experience"]["positions"] = []
                     else:
-                        parsed_profile_builder["experience"] = {"current": currentExp or [], "positions": parsed_profile_builder.get("experience", [])}
+                        # If experience is not a dict (shouldn't happen), create proper structure
+                        parsed_profile_builder["experience"] = {
+                            "current": currentExp or [], 
+                            "positions": parsed_profile_builder.get("experience", []) if isinstance(parsed_profile_builder.get("experience"), list) else []
+                        }
 
                 if "skills" in parsed_profile_builder:
                     if isinstance(parsed_profile_builder["skills"], dict):
