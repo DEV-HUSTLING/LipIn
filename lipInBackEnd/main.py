@@ -23,6 +23,7 @@ origins = [
     "http://127.0.0.1:8000",
     "http://localhost:8000",
     "https://lipin.onrender.com",
+    "https://lipindashboard.netlify.app",
     "https://myfrontenddomain.com",
     "chrome-extension://*",
 ]
