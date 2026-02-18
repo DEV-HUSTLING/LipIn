@@ -8,8 +8,8 @@ import json
 import time
 from config import db, async_client
 from cache import get_cached_profile, set_cached_profile
-from .prompts import (
-    ProfileScoringPrompt)
+from .prompts import ProfileScoringPrompt
+
 router = APIRouter(prefix="/profile_analyst", tags=["Profile Analyst"])
 
 
@@ -26,7 +26,7 @@ def scrape(req: ScrapeRequest):
         if data:
             doc_id = req.profile_url.rstrip("/").split("/")[-1]
             _, doc_ref = db.collection("users").document(doc_id).collection('profileInfo').add(data)
-        return {"success": True, "data": data, 
+        return {"success": True, "data": data,
                 "document_id": doc_ref.id, "message": "Profile scraped and added to database successfully."
                 }
     except RuntimeError as e:

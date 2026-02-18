@@ -1,11 +1,10 @@
 services:
   - type: web
     name: lipin-backend
-    env: python
+    env: docker
     region: oregon
     plan: free
-    buildCommand: "./build.sh"
-    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    dockerfilePath: ./Dockerfile
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.10.16
+      - key: PORT
+        value: 8000
