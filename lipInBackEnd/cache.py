@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from config import db
 
 CACHE_TTL_MINUTES = 30
-CACHE_ENABLED = False  # Set to True to enable caching
+CACHE_ENABLED = True  # Set to True to enable caching
 
 
 def _get_cache_key(profile_url: str) -> str:

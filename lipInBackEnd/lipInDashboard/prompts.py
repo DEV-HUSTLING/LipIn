@@ -21,11 +21,16 @@ class ProfileBuilderPrompt:
 - Include quantifiable achievements and niche keywords
 - Each needs: id, recommendation, confidenceScore, bestFor
 
-### 3. EXPERIENCE (2 suggestions per position)
-- Company overview (1-2 sentences)
-- 3-5 quantified bullet points with metrics
-- Niche-relevant keywords
-- Each needs: id, companyOverview, profileHeadline, bulletPoints[], confidenceScore, bestFor
+### 3. EXPERIENCE (positions array with suggestions)
+- Return as object with "positions" array
+- For each position from user's CURRENT EXPERIENCE:
+  * Extract: role, company, current (existing description if any)
+  * Generate: keywords (5-8 role-specific terms)
+  * Provide 2 suggestions, each with:
+    - id, companyOverview (1-2 sentences), profileHeadline
+    - bulletPoints[] (3-5 quantified achievements with metrics)
+    - confidenceScore (0-100), bestFor
+- If user has no experience, return empty positions array
 
 ### 4. SKILLS (12-20 prioritized skills)
 - Use specific tools/platforms (Python, not "Coding"; Salesforce, not "CRM")
@@ -41,8 +46,61 @@ class ProfileBuilderPrompt:
 - Each needs: id, name, template, confidenceScore, bestFor
 
 ## OUTPUT FORMAT:
-Return JSON with "data" property containing: headline, about, experience, skills, education, recommendation_request_template.
-Each section includes "current" (user's actual data) and "suggestions" array.
+Return JSON with "data" property containing all sections.
+
+REQUIRED STRUCTURE:
+{
+  "data": {
+    "headline": {
+      "current": "user's current headline",
+      "suggestions": [
+        {"id": 1, "recommendation": "...", "confidenceScore": 85, "bestFor": "..."},
+        ...3 total
+      ]
+    },
+    "about": {
+      "current": "user's current about",
+      "suggestions": [
+        {"id": 1, "recommendation": "...", "confidenceScore": 85, "bestFor": "..."},
+        ...3 total
+      ]
+    },
+    "experience": {
+      "current": [],
+      "positions": [
+        {
+          "role": "Job Title",
+          "company": "Company Name",
+          "current": "Current description if any",
+          "keywords": ["keyword1", "keyword2", ...],
+          "suggestions": [
+            {
+              "id": 1,
+              "companyOverview": "...",
+              "profileHeadline": "...",
+              "bulletPoints": ["Achievement 1", "Achievement 2", ...],
+              "confidenceScore": 85,
+              "bestFor": "..."
+            },
+            ...2 suggestions per position
+          ]
+        }
+      ]
+    },
+    "skills": {
+      "current": [],
+      "skillsToPrioritize": ["Specific Tool 1", "Platform 2", ...]
+    },
+    "education": {
+      "current": [],
+      "suggestions": [...]
+    },
+    "recommendation_request_template": {
+      "current": "",
+      "suggestions": [...]
+    }
+  }
+}
 
 Output valid JSON only, no markdown."""
         }
