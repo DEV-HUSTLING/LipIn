@@ -2,3 +2,4 @@
 backend/.env
 echo "lipInBackEnd/*.json" >> .gitignore
 echo "**/*firebase-adminsdk*.json" >> .gitignore
+__pycache__/
