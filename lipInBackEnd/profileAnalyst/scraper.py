@@ -8,30 +8,6 @@ import datetime
 
 BROWSER_DATA_DIR = os.path.join(os.path.dirname(__file__), "linkedin_browser_data")
 
-# Get Playwright browser path from environment variable or use default
-PLAYWRIGHT_BROWSERS_PATH = os.environ.get('PLAYWRIGHT_BROWSERS_PATH')
-
-def _get_chromium_executable():
-    """Find the chromium executable in the Playwright browsers path."""
-    if not PLAYWRIGHT_BROWSERS_PATH or not os.path.exists(PLAYWRIGHT_BROWSERS_PATH):
-        return None
-    
-    # Look for chromium_headless_shell-* directory
-    try:
-        for item in os.listdir(PLAYWRIGHT_BROWSERS_PATH):
-            if item.startswith('chromium_headless_shell-'):
-                exec_path = os.path.join(PLAYWRIGHT_BROWSERS_PATH, item, 'chrome-headless-shell-linux64', 'chrome-headless-shell')
-                if os.path.exists(exec_path):
-                    return exec_path
-                # Try alternative path structure
-                exec_path = os.path.join(PLAYWRIGHT_BROWSERS_PATH, item, 'chrome-linux', 'chrome')
-                if os.path.exists(exec_path):
-                    return exec_path
-    except Exception:
-        pass
-    return None
-
-CHROMIUM_EXECUTABLE = _get_chromium_executable()
 date = datetime.datetime.now()
 BROWSER_ARGS = [
     "--disable-blink-features=AutomationControlled",
@@ -883,8 +859,6 @@ def setup_session():
             "viewport": VIEWPORT,
             "user_agent": USER_AGENT,
         }
-        if CHROMIUM_EXECUTABLE and os.path.exists(CHROMIUM_EXECUTABLE):
-            launch_options["executable_path"] = CHROMIUM_EXECUTABLE
         browser = p.chromium.launch_persistent_context(**launch_options)
         page = browser.new_page()
         page.goto("https://www.linkedin.com/login")
@@ -926,8 +900,6 @@ def scrape_profile(profile_url: str, headless: bool = True) -> dict:
             "viewport": VIEWPORT,
             "user_agent": USER_AGENT,
         }
-        if CHROMIUM_EXECUTABLE and os.path.exists(CHROMIUM_EXECUTABLE):
-            launch_options["executable_path"] = CHROMIUM_EXECUTABLE
         browser = p.chromium.launch_persistent_context(**launch_options)
 
         page = browser.new_page()

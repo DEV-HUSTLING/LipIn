@@ -9,5 +9,3 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.16
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /opt/render/project/src/ms-playwright
