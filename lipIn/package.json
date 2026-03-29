@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:popup && npm run build:content",
+    "build": "npm run build:popup && npm run build:content && npm run build:sw",
     "build:popup": "vite build",
     "build:content": "cross-env BUILD_TARGET=content vite build",
+    "build:sw": "cross-env BUILD_TARGET=sw vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

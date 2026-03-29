@@ -20,4 +20,4 @@ googleProvider.setCustomParameters({
 })
 
 // Keep user logged in
-setPersistence(auth, browserLocalPersistence)
+// setPersistence(auth, browserLocalPersistence)

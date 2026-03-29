@@ -5,6 +5,24 @@ import { resolve } from 'path';
 
 export default defineConfig(({ mode }) => {
   const isContentBuild = process.env.BUILD_TARGET === 'content';
+  const isSwBuild = process.env.BUILD_TARGET === 'sw';
+
+  if (isSwBuild) {
+    return {
+      build: {
+        outDir: "public",
+        emptyOutDir: false,
+        rollupOptions: {
+          input: { service_worker: resolve(__dirname, 'src/service_worker.js') },
+          output: {
+            entryFileNames: 'service_worker.js',
+            format: 'es',
+            inlineDynamicImports: true
+          }
+        }
+      }
+    };
+  }
 
   if (isContentBuild) {
     return {

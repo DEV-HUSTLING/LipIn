@@ -1,77 +1,25 @@
 import './content.css'; // Import content-specific CSS
 import { CommentComponent } from './utils.jsx'
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc } from "firebase/firestore";
-
-// Initialize Firebase for comment tracking
-const firebaseConfig = {
-  apiKey: "AIzaSyBaNAHhmMK3I7x1cXXSWoOtQxqfiGsJTNQ",
-  authDomain: "lipin-5ab71.firebaseapp.com",
-  projectId: "lipin-5ab71",
-  storageBucket: "lipin-5ab71.firebasestorage.app",
-  messagingSenderId: "308608519140",
-  appId: "1:308608519140:web:c71b717860147e2c1d15f1",
-  measurementId: "G-CLZV2VJDMR"
-};
-const firebaseApp = initializeApp(firebaseConfig, 'content-script');
-const db = getFirestore(firebaseApp);
 
 let isSavingComment = false;
 
-// Function to save comment to Firebase
-async function saveCommentToFirebase(commentText, postContainer) {
-    if (isSavingComment) {
-        console.log('Already saving comment, skipping...');
-        return;
-    }
-    
-    if (!commentText || commentText.trim() === '' || commentText === 'Generating comment...') {
-        console.log('❌ No valid comment text to save');
-        return;
-    }
+// Delegate Firestore write to service worker — keeps Firebase out of the content
+// script entirely, which prevents chrome-extension://invalid/ fetch errors.
+async function saveCommentToFirebase(commentText) {
+    if (isSavingComment) return;
+    if (!commentText || commentText.trim() === '' || commentText === 'Generating comment...') return;
 
-    try {
-        // Get profile URL from storage
-        const result = await new Promise(resolve => {
-            chrome.storage.local.get('profileURl', resolve);
-        });
-        
-        if (!result.profileURl) {
-            console.error('❌ No profile URL in storage');
-            return;
-        }
-        
-        const profileSlug = result.profileURl.split("/in/")[1]?.split("/")[0];
-        if (!profileSlug) {
-            console.error('❌ Could not extract profile slug');
-            return;
-        }
-        
-        isSavingComment = true;
-        console.log('🔥 Saving comment to Firebase for:', profileSlug);
-        
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const dateOnly = today.getTime();
-        
-        const docRef = await addDoc(
-            collection(db, "comments", profileSlug, "items"),
-            {
-                text: commentText.trim(),
-                createdAt: dateOnly,
-                timestamp: new Date().toISOString(),
-            }
-        );
-        
-        console.log('🎉 Comment saved to Firebase! Doc ID:', docRef.id);
-        
-    } catch (error) {
-        console.error('❌ Firebase save error:', error);
-    } finally {
-        setTimeout(() => {
-            isSavingComment = false;
-        }, 1000);
-    }
+    const result = await new Promise(resolve => chrome.storage.local.get('profileURl', resolve));
+    if (!result.profileURl) return;
+
+    const profileSlug = result.profileURl.split("/in/")[1]?.split("/")[0];
+    if (!profileSlug) return;
+
+    isSavingComment = true;
+    chrome.runtime.sendMessage(
+        { action: 'saveComment', commentText: commentText.trim(), profileSlug },
+        () => { setTimeout(() => { isSavingComment = false; }, 1000); }
+    );
 }
 
 function addIfNotExists(post, postContainer) {
@@ -93,25 +41,34 @@ function scanAndAddButtons() {
             const classList = postButton.className || '';
             const buttonText = postButton.textContent?.trim().toLowerCase() || '';
             
-            const isPostCommentButton = 
+            // LinkedIn now uses hashed CSS classes — match by button text instead of class names
+            const isPostCommentButton =
                 classList.includes('comments-comment-box__submit-button') ||
-                (buttonText === 'post' && classList.includes('artdeco-button--primary'));
-            
+                buttonText === 'post' ||
+                buttonText === 'comment';
+
             if (isPostCommentButton) {
                 console.log('🎯 POST COMMENT BUTTON CLICKED!');
-                
-                // Find the comment text from the nearby editor
-                const commentBox = postButton.closest('.comments-comment-box') || 
-                                   postButton.closest('[class*="comments-comment"]');
-                if (commentBox) {
-                    const editor = commentBox.querySelector('[contenteditable="true"]') ||
-                                   commentBox.querySelector('.ql-editor') ||
-                                   commentBox.querySelector('p');
-                    if (editor) {
-                        const commentText = editor.textContent || editor.innerText;
-                        console.log('📝 Comment text found:', commentText);
-                        saveCommentToFirebase(commentText, commentBox);
-                    }
+
+                // Walk up the DOM until we find a container with a contenteditable editor
+                // LinkedIn new UI uses hashed classes so we can't rely on class names
+                const commentBox =
+                    postButton.closest('.comments-comment-box') ||
+                    postButton.closest('[class*="comments-comment"]') ||
+                    postButton.closest('[componentkey]') ||
+                    postButton.closest('[data-urn]');
+
+                const editor = commentBox
+                    ? (commentBox.querySelector('[aria-label="Text editor for creating comment"]') ||
+                       commentBox.querySelector('[contenteditable="true"]') ||
+                       commentBox.querySelector('.ql-editor') ||
+                       commentBox.querySelector('p'))
+                    : null;
+
+                if (editor) {
+                    const commentText = editor.textContent || editor.innerText;
+                    console.log('📝 Comment text found:', commentText);
+                    saveCommentToFirebase(commentText);
                 }
             }
         }
@@ -119,25 +76,27 @@ function scanAndAddButtons() {
         const cmntBtn2 = e.target.closest('button.comment-button')
         const cmntBtn3 = e.target.closest('button[aria-label*="comment"]')
         const cmntBtn4 = e.target.closest('.comments-comment-button')
-        
+        // New LinkedIn UI (2025): detect via SVG id inside button
+        const clickedBtn = e.target.closest('button');
+        const cmntBtn5 = (clickedBtn && clickedBtn.querySelector('svg[id="comment-small"]')) ? clickedBtn : null;
+
         if (cmntBtn) {
             console.log('Comment button 1 clicked');
             setTimeout(() => {
-                const postContainer = cmntBtn.closest('[componentKey*="MAIN_FEED_RELEVANCE"]');
+                // Broaden selector to match any MAIN_FEED variant
+                const postContainer = cmntBtn.closest('[componentKey*="MAIN_FEED"]');
                 console.log('postContainer', postContainer)
                 if (postContainer) {
                     const cmntEditor = postContainer.querySelector('[aria-label="Text editor for creating comment"]')
                     console.log('comment editor', cmntEditor)
                     if (cmntEditor) {
                         addIfNotExists(cmntEditor, postContainer)
-
                     } else {
                         setTimeout(() => {
                             const cmntEditor = postContainer.querySelector('[aria-label="Text editor for creating comment"]')
                             if (cmntEditor) addIfNotExists(cmntEditor, postContainer)
                         }, 800)
                     }
-
                 }
             }, 300)
         }
@@ -196,7 +155,7 @@ function scanAndAddButtons() {
                 const postContainer = cmntBtn4.closest('article') || cmntBtn4.closest('[data-urn]') || cmntBtn4.closest('.feed-shared-update-v2');
                 console.log('postContainer for cmntBtn4', postContainer);
                 if(postContainer){
-                    let cmntEditor = postContainer.querySelector('.comments-comment-texteditor') || 
+                    let cmntEditor = postContainer.querySelector('.comments-comment-texteditor') ||
                                    postContainer.querySelector('[contenteditable="true"]') ||
                                    postContainer.querySelector('.ql-editor');
                     console.log('cmntEditor found:', cmntEditor);
@@ -205,7 +164,7 @@ function scanAndAddButtons() {
                         addIfNotExists(cmntEditor, postContainer)
                     }else{
                         setTimeout(()=>{
-                            cmntEditor = postContainer.querySelector('.comments-comment-texteditor') || 
+                            cmntEditor = postContainer.querySelector('.comments-comment-texteditor') ||
                                        postContainer.querySelector('[contenteditable="true"]') ||
                                        postContainer.querySelector('.ql-editor');
                             if(cmntEditor) addIfNotExists(cmntEditor, postContainer)
@@ -214,6 +173,24 @@ function scanAndAddButtons() {
                 }
             }, 300)
         }
+        else if(cmntBtn5){
+            console.log('Comment button 5 clicked (new LinkedIn UI)');
+            setTimeout(() => {
+                const postContainer = cmntBtn5.closest('[componentkey*="MAIN_FEED"]');
+                console.log('postContainer for cmntBtn5', postContainer);
+                if (postContainer) {
+                    let cmntEditor = postContainer.querySelector('[aria-label="Text editor for creating comment"]');
+                    if (cmntEditor) {
+                        addIfNotExists(cmntEditor, postContainer);
+                    } else {
+                        setTimeout(() => {
+                            cmntEditor = postContainer.querySelector('[aria-label="Text editor for creating comment"]');
+                            if (cmntEditor) addIfNotExists(cmntEditor, postContainer);
+                        }, 800);
+                    }
+                }
+            }, 300);
+        }
     }, true)
     // const posts = document.querySelectorAll('div.comments-comment-texteditor');
     // posts.forEach(p => addIfNotExists(p));
@@ -221,7 +198,10 @@ function scanAndAddButtons() {
 
 function getProfileUrl(sidebar) {
     if (!sidebar) return;
-    const profileLink = sidebar.querySelector('a[data-view-name="identity-self-profile"]');
+    // Try old selector first, fall back to any /in/ link in the sidebar
+    const profileLink = sidebar.querySelector('a[data-view-name="identity-self-profile"]') ||
+                        sidebar.querySelector('a[href*="/in/"]');
+    // console.log('🔍 [Content] Profile link found:', profileLink ? profileLink.href : '❌ NOT FOUND');
 
     if (profileLink) {
         const extract = () => {
@@ -239,8 +219,9 @@ function getProfileUrl(sidebar) {
                 : href;
 
             // Save data
+            // console.log('🔍 [Content] Scraped profileURl:', absoluteUrl);
             chrome.storage.local.set({ profileURl: absoluteUrl }, () => {
-                console.log('Saved to extension storage from profile link');
+                // console.log('✅ [Content] profileURl saved to storage:', absoluteUrl);
             });
 
             chrome.runtime.sendMessage({

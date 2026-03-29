@@ -9,7 +9,12 @@
       "Bash(npm install:*)",
       "Bash(npm run build:*)",
       "Bash(source:*)",
-      "Bash(pip show:*)"
+      "Bash(pip show:*)",
+      "Bash(git reset:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(fly deploy:*)"
     ]
   }
 }

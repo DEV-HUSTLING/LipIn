@@ -1,14 +1,26 @@
 from playwright.sync_api import sync_playwright
+from dotenv import load_dotenv
 import json
 import time
 import random
 import argparse
 import os
 import datetime
+import threading
 
-BROWSER_DATA_DIR = os.path.join(os.path.dirname(__file__), "linkedin_browser_data")
+# Load .env file (LINKEDIN_EMAIL, LINKEDIN_PASSWORD)
+load_dotenv()
 
-date = datetime.datetime.now()
+# Use persistent volume on Fly.io, local directory otherwise
+if os.getenv("FLY_APP_NAME"):
+    SESSION_FILE = "/data/linkedin_session.json"
+else:
+    SESSION_FILE = os.path.join(os.path.dirname(__file__), "linkedin_session.json")
+
+# Cap concurrent browser instances to prevent OOM
+# Raise or lower depending on your server's RAM (3 is safe for ~1–2GB)
+_SCRAPE_SEMAPHORE = threading.Semaphore(3)
+
 BROWSER_ARGS = [
     "--disable-blink-features=AutomationControlled",
     "--no-sandbox",
@@ -38,7 +50,6 @@ def _scroll_to_bottom(page):
         if curr_height == prev_height:
             break
         prev_height = curr_height
-    # Scroll back to top for extraction
     page.evaluate("window.scrollTo(0, 0)")
     time.sleep(0.5)
 
@@ -54,6 +65,91 @@ def _click_see_more(page, selector):
         pass
 
 
+# ──────────────────────────────────────────────
+# Auto Login
+# ──────────────────────────────────────────────
+
+def auto_login() -> bool:
+    """
+    Automatically log in to LinkedIn using credentials from .env file.
+    Saves a fresh session to SESSION_FILE on success.
+
+    Returns True if login succeeded, False if LinkedIn blocked it
+    (e.g. CAPTCHA, email verification challenge).
+
+    Set in your .env file (or Fly.io secrets):
+        LINKEDIN_EMAIL=you@example.com
+        LINKEDIN_PASSWORD=yourpassword
+    """
+    email = os.getenv("LINKEDIN_EMAIL")
+    password = os.getenv("LINKEDIN_PASSWORD")
+
+    if not email or not password:
+        raise RuntimeError(
+            "LINKEDIN_EMAIL and LINKEDIN_PASSWORD must be set in your .env file "
+            "or as environment variables."
+        )
+
+    print("Auto-login: starting...")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=BROWSER_ARGS)
+        context = browser.new_context(user_agent=USER_AGENT, viewport=VIEWPORT)
+        try:
+            page = context.new_page()
+            page.set_default_timeout(30_000)
+
+            page.goto("https://www.linkedin.com/login", wait_until="domcontentloaded")
+            _random_delay(1.5, 2.5)
+
+            # Fill in credentials
+            page.fill("#username", email)
+            _random_delay(0.5, 1.0)
+            page.fill("#password", password)
+            _random_delay(0.5, 1.0)
+            page.click('button[type="submit"]')
+
+            page.wait_for_load_state("load")
+            _random_delay(2.0, 3.5)
+
+            current_url = page.url.lower()
+
+            # LinkedIn is asking for CAPTCHA or email verification — can't automate this
+            if any(x in current_url for x in ["/checkpoint", "/challenge", "/verify"]):
+                print(
+                    "Auto-login blocked: LinkedIn is asking for manual verification.\n"
+                    "Run: python scraper.py --setup  to log in manually."
+                )
+                return False
+
+            # Wrong password or account issue
+            if any(x in current_url for x in ["/login", "/signup"]):
+                print(
+                    "Auto-login failed: still on login page.\n"
+                    "Check LINKEDIN_EMAIL and LINKEDIN_PASSWORD in your .env file."
+                )
+                return False
+
+            # Success — save session to file
+            if "/feed" in current_url or "linkedin.com" in current_url:
+                # Ensure the directory exists (for Fly.io /data volume)
+                os.makedirs(os.path.dirname(SESSION_FILE) or ".", exist_ok=True)
+                context.storage_state(path=SESSION_FILE)
+                print(f"Auto-login: session saved to {SESSION_FILE}")
+                return True
+
+            print(f"Auto-login: unexpected URL after login — {page.url}")
+            return False
+
+        finally:
+            context.close()
+            browser.close()
+
+
+# ──────────────────────────────────────────────
+# Extractors
+# ──────────────────────────────────────────────
+
 def _extract_basic_info(page):
     """Extract name, headline, location, profile picture, connections, followers."""
     data = {
@@ -65,12 +161,9 @@ def _extract_basic_info(page):
         "followers": 0
     }
 
-    # Scroll down and back up to trigger lazy loading
     _scroll_to_bottom(page)
     _random_delay(1.0, 2.0)
 
-    # Use JavaScript to extract directly from DOM
-    # LinkedIn now uses obfuscated CSS class names, so we use semantic/aria selectors
     js_data = page.evaluate("""
         () => {
             const result = {
@@ -80,131 +173,118 @@ def _extract_basic_info(page):
                 debug: {}
             };
 
-            // Find the main content area
             const main = document.querySelector('main');
             if (!main) {
                 result.debug.error = 'No main element found';
                 return result;
             }
 
-            // Get the first section in main (profile header)
-            const profileSection = main.querySelector('section');
-            if (!profileSection) {
+            // Find the profile card - first section in main that contains profile info
+            const firstSection = main.querySelector('section');
+            if (!firstSection) {
                 result.debug.error = 'No section in main';
                 return result;
             }
 
-            // Get all text-containing elements in the profile section
-            const allText = [];
-            const walker = document.createTreeWalker(
-                profileSection,
-                NodeFilter.SHOW_TEXT,
-                null,
-                false
-            );
-
-            let node;
-            while (node = walker.nextNode()) {
-                const text = node.textContent.trim();
-                if (text.length > 0) {
-                    allText.push({
-                        text: text,
-                        parent: node.parentElement?.tagName
-                    });
+            // Try to find the name using h1 tag first (most reliable)
+            const h1 = firstSection.querySelector('h1');
+            if (h1) {
+                const nameText = h1.textContent.trim();
+                if (nameText && nameText.length < 100 &&
+                    !nameText.toLowerCase().includes('profile') &&
+                    !nameText.toLowerCase().includes('more')) {
+                    result.name = nameText;
                 }
             }
 
+            // Get lines from the profile card
+            const cardText = firstSection.innerText;
+            const NL = String.fromCharCode(10);
+            const cardLines = cardText.split(NL).map(l => l.trim()).filter(l => l.length > 0);
 
-            // First substantial text is usually the name
-            for (const item of allText) {
-                if (item.text.length > 2 && item.text.length < 60 &&
-                    !item.text.includes('Skip') &&
-                    !item.text.includes('notification')) {
-                    result.name = item.text;
-                    break;
-                }
-            }
-
-            // Find headline - look for text after name that describes the person
-            let foundName = false;
-            for (const item of allText) {
-                if (item.text === result.name) {
-                    foundName = true;
-                    continue;
-                }
-                if (foundName && item.text.length > 10 && item.text.length < 300) {
-                    // Skip common UI elements
-                    if (!item.text.includes('Connect') &&
-                        !item.text.includes('Message') &&
-                        !item.text.includes('More') &&
-                        !item.text.includes('followers')) {
-                        result.headline = item.text;
+            // Find name - first non-UI line that looks like a name
+            if (!result.name) {
+                for (const line of cardLines) {
+                    if (line.length > 3 && line.length < 50 &&
+                        !line.includes('@') && !line.includes('|') &&
+                        !line.toLowerCase().includes('connect') &&
+                        !line.toLowerCase().includes('message') &&
+                        !line.toLowerCase().includes('more') &&
+                        !line.toLowerCase().includes('skip') &&
+                        !line.toLowerCase().includes('follower') &&
+                        !/\\d/.test(line)) {
+                        result.name = line;
                         break;
                     }
                 }
             }
 
-            // Find location - usually contains city/country
-            for (const item of allText) {
-                const lower = item.text.toLowerCase();
+            // Find headline - usually the line after name that contains job info
+            let foundName = false;
+            for (const line of cardLines) {
+                if (line === result.name) {
+                    foundName = true;
+                    continue;
+                }
+                // Skip pronouns line
+                if (foundName && (line === 'She/Her' || line === 'He/Him' || line === 'They/Them')) {
+                    continue;
+                }
+                // Headline is usually 15-300 chars with job-related content
+                if (foundName && line.length > 15 && line.length < 300) {
+                    if (line.includes('@') || line.includes('|') ||
+                        line.toLowerCase().includes('developer') ||
+                        line.toLowerCase().includes('engineer') ||
+                        line.toLowerCase().includes('analyst') ||
+                        line.toLowerCase().includes('manager') ||
+                        line.toLowerCase().includes('founder') ||
+                        line.toLowerCase().includes('specialist') ||
+                        line.toLowerCase().includes('consultant') ||
+                        line.toLowerCase().includes('grad') ||
+                        line.toLowerCase().includes('student') ||
+                        line.toLowerCase().includes('enthusiast')) {
+                        result.headline = line;
+                        break;
+                    }
+                }
+            }
+
+            // Find location - line that contains geographic info
+            for (const line of cardLines) {
+                const lower = line.toLowerCase();
                 if ((lower.includes('india') || lower.includes('united') ||
+                     lower.includes('new york') || lower.includes('california') ||
+                     lower.includes('london') || lower.includes('states') ||
                      lower.includes('city') || lower.includes('area') ||
-                     item.text.includes(',')) &&
-                    item.text.length < 100) {
-                    result.location = item.text;
+                     (line.includes(',') && !line.includes('@') && !line.includes('|'))) &&
+                    line.length < 100 && line.length > 5) {
+                    result.location = line;
                     break;
                 }
             }
 
-            // Find connections and followers count separately
             result.connections = null;
             result.followers = 0;
 
-            for (let i = 0; i < allText.length; i++) {
-                const text = allText[i].text.toLowerCase();
-                // Check for connections
-                if (text === 'connections' && !result.connections) {
-                    if (i > 0) {
-                        const prevText = allText[i-1].text;
-                        // Handle "500+" or pure numbers
-                        if (/^\\d+\\+?$/.test(prevText)) {
-                            result.connections = prevText;  // Keep as string like "500+"
-                        } else if (/^[\\d,]+$/.test(prevText)) {
-                            result.connections = parseInt(prevText.replace(/,/g, ''));
-                        }
-                    }
-                }
-                // Check for followers
-                if (text === 'followers' && result.followers === 0) {
-                    if (i > 0 && /^[\\d,]+$/.test(allText[i-1].text)) {
-                        result.followers = parseInt(allText[i-1].text.replace(/,/g, ''));
-                    }
-                }
+            // Find connections and followers from page text
+            const fullText = document.body.innerText;
+
+            // Match "297 connections" or "500+ connections"
+            const connMatch = fullText.match(/(\d[\d,]*\+?)\s*connections?/i);
+            if (connMatch) {
+                const val = connMatch[1].replace(/,/g, '');
+                result.connections = val.includes('+') ? val : parseInt(val);
             }
 
-            // Fallback: look for "500+ connections" or "X connections" in full text
-            if (!result.connections) {
-                const fullText = document.body.innerText;
-                const connMatch = fullText.match(/(\\d[\\d,]*\\+?)\\s*connections?/i);
-                if (connMatch) {
-                    const val = connMatch[1].replace(/,/g, '');
-                    result.connections = val.includes('+') ? val : parseInt(val);
-                }
-            }
-
-            // Also look for "X followers" pattern in full text
-            if (result.followers === 0) {
-                const fullText = document.body.innerText;
-                const followersMatch = fullText.match(/(\\d[\\d,]*)\\s*followers?/i);
-                if (followersMatch) {
-                    result.followers = parseInt(followersMatch[1].replace(/,/g, ''));
-                }
+            // Match "323 followers"
+            const followersMatch = fullText.match(/(\d[\d,]*)\s*followers?/i);
+            if (followersMatch) {
+                result.followers = parseInt(followersMatch[1].replace(/,/g, ''));
             }
 
             return result;
         }
     """)
-
 
     data["name"] = js_data.get("name")
     data["headline"] = js_data.get("headline")
@@ -212,17 +292,12 @@ def _extract_basic_info(page):
     data["connections"] = js_data.get("connections")
     data["followers"] = js_data.get("followers", 0)
 
-    # Extract profile picture using JS (LinkedIn uses obfuscated classes)
     try:
         src = page.evaluate("""
             () => {
-                // Find profile image in main section
                 const main = document.querySelector('main');
                 if (!main) return null;
 
-                // Look for profile photo (not banner)
-                // Profile photos have 'profile-displayphoto' in URL
-                // Banners have 'profile-background' or 'headerImage'
                 const imgs = main.querySelectorAll('img');
                 for (const img of imgs) {
                     const src = img.src || img.currentSrc;
@@ -237,7 +312,6 @@ def _extract_basic_info(page):
                     }
                 }
 
-                // Fallback: look for circular/square profile images by aspect ratio
                 for (const img of imgs) {
                     const src = img.src || img.currentSrc;
                     if (src && src.includes('licdn.com') &&
@@ -245,7 +319,7 @@ def _extract_basic_info(page):
                         !src.includes('banner') &&
                         !src.includes('ghost') &&
                         img.width > 50 && img.width < 500 &&
-                        Math.abs(img.width - img.height) < 50) {  // Square-ish = profile photo
+                        Math.abs(img.width - img.height) < 50) {
                         return src;
                     }
                 }
@@ -307,9 +381,185 @@ def _extract_about(page):
         return None
 
 
+def _scroll_to_section(page, section_name):
+    """Scroll to a specific section by its header text."""
+    try:
+        page.evaluate(f"""
+            () => {{
+                const sections = document.querySelectorAll('main section');
+                for (const section of sections) {{
+                    const text = section.innerText || '';
+                    if (text.startsWith('{section_name}') || text.includes('\\n{section_name}\\n')) {{
+                        section.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+                        return true;
+                    }}
+                }}
+                return false;
+            }}
+        """)
+        time.sleep(1.5)
+    except Exception:
+        pass
+
+
+def _click_show_all_buttons(page):
+    """Click all 'Show all' buttons to expand sections."""
+    try:
+        page.evaluate("""
+            () => {
+                const buttons = document.querySelectorAll('button, a');
+                for (const btn of buttons) {
+                    const text = (btn.textContent || '').toLowerCase();
+                    if (text.includes('show all') && !text.includes('show all ')) {
+                        btn.click();
+                    }
+                }
+            }
+        """)
+        time.sleep(1.0)
+    except Exception:
+        pass
+
+
+def _extract_experience_from_detail_page(page, profile_url):
+    """Navigate to experience detail page and extract all entries."""
+    try:
+        exp_url = profile_url.rstrip("/") + "/details/experience/"
+        page.goto(exp_url, wait_until="domcontentloaded")
+        _random_delay(1.5, 2.5)
+        _scroll_to_bottom(page)
+
+        experiences = page.evaluate("""
+            () => {
+                const results = [];
+                const main = document.querySelector('main');
+                if (!main) return [];
+
+                const skipTexts = new Set([
+                    'experience', 'show all', 'see more', 'see less',
+                    'skills:', 'add experience'
+                ]);
+
+                const stopWords = [
+                    'ad options', 'more profiles for you', 'about',
+                    'accessibility', 'talent solutions', 'community guidelines',
+                    'careers', 'privacy', 'linkedin corporation', 'help center'
+                ];
+
+                const allText = [];
+                const walker = document.createTreeWalker(
+                    main,
+                    NodeFilter.SHOW_TEXT,
+                    null,
+                    false
+                );
+
+                let node;
+                while (node = walker.nextNode()) {
+                    const text = node.textContent.trim();
+                    if (text.length > 0) allText.push(text);
+                }
+
+                let currentEntry = null;
+                const seenEntries = new Set();
+
+                for (let i = 0; i < allText.length; i++) {
+                    const text = allText[i];
+                    const lower = text.toLowerCase();
+                    const nextText = allText[i + 1] || '';
+
+                    if (stopWords.some(sw => lower.includes(sw))) break;
+                    if (skipTexts.has(lower) || text.length < 2) continue;
+                    if (text === '·' || text === '-' || /^\\d+$/.test(text)) continue;
+                    if (text.startsWith('Skills:')) continue;
+
+                    // Duration pattern
+                    const isDuration = /\\d{4}/.test(text) &&
+                        (text.includes(' - ') || text.toLowerCase().includes('present') ||
+                         /\\d+\\s*(yr|mo|year|month)/i.test(text));
+
+                    // Employment type pattern
+                    const isEmploymentType = text.includes('·') &&
+                        (text.includes('Full-time') || text.includes('Part-time') ||
+                         text.includes('Internship') || text.includes('Contract') ||
+                         text.includes('Freelance') || text.includes('Self-employed'));
+
+                    // Location pattern
+                    const isLocation = !isDuration && !isEmploymentType &&
+                        ((text.includes(',') && text.length < 60) ||
+                         lower.includes('remote') || lower.includes('hybrid') ||
+                         lower.includes('on-site'));
+
+                    if (isDuration && currentEntry && !currentEntry.duration) {
+                        currentEntry.duration = text;
+                        continue;
+                    }
+
+                    if (isEmploymentType && currentEntry && !currentEntry.company) {
+                        currentEntry.company = text;
+                        continue;
+                    }
+
+                    if (isLocation && currentEntry && !currentEntry.location) {
+                        currentEntry.location = text;
+                        continue;
+                    }
+
+                    // Description: longer text
+                    if (text.length > 100 && currentEntry) {
+                        currentEntry.description = text;
+                        continue;
+                    }
+
+                    // Job title: shorter text followed by company info
+                    if (text.length > 2 && text.length < 80 && !isDuration && !isLocation && !isEmploymentType) {
+                        const nextIsCompanyOrDuration = nextText.includes('·') ||
+                            /\\d{4}/.test(nextText) ||
+                            nextText.toLowerCase().includes('full-time') ||
+                            nextText.toLowerCase().includes('part-time');
+
+                        if (nextIsCompanyOrDuration) {
+                            // Save previous entry
+                            if (currentEntry && currentEntry.title) {
+                                const key = currentEntry.title + '|' + (currentEntry.company || '');
+                                if (!seenEntries.has(key)) {
+                                    seenEntries.add(key);
+                                    results.push(currentEntry);
+                                }
+                            }
+                            currentEntry = {
+                                title: text,
+                                company: null,
+                                duration: null,
+                                location: null,
+                                description: null
+                            };
+                        }
+                    }
+                }
+
+                // Save last entry
+                if (currentEntry && currentEntry.title) {
+                    const key = currentEntry.title + '|' + (currentEntry.company || '');
+                    if (!seenEntries.has(key)) {
+                        results.push(currentEntry);
+                    }
+                }
+
+                return results;
+            }
+        """)
+        return experiences if experiences and isinstance(experiences, list) else []
+    except Exception:
+        return []
+
+
 def _extract_experience(page):
     """Extract all experience entries by finding header text and using TreeWalker."""
     try:
+        # Scroll to experience section and wait for load
+        _scroll_to_section(page, "Experience")
+
         experiences = page.evaluate("""
             () => {
                 // Find section containing "Experience" header
@@ -404,19 +654,34 @@ def _extract_experience(page):
                     }
 
                     // Job title: short text not matching other patterns
-                    // Next item should be company (contains employment type indicator)
                     if (text.length > 2 && text.length < 80 &&
                         !isDuration && !isLocation && !isCompany) {
-                        // Check if next looks like company
+                        // Check if next looks like company OR duration (more flexible)
                         const nextIsCompany = nextText.includes('·') &&
                             (nextText.includes('Full-time') || nextText.includes('Part-time') ||
-                             nextText.includes('Internship') || nextText.includes('Contract'));
+                             nextText.includes('Internship') || nextText.includes('Contract') ||
+                             nextText.includes('Freelance') || nextText.includes('Self-employed'));
 
-                        if (nextIsCompany) {
+                        // Also match if next text looks like a company name (contains org indicators)
+                        const nextLooksLikeOrg = nextText.length > 3 && nextText.length < 100 &&
+                            !nextText.includes('·') &&
+                            (nextText.toLowerCase().includes('inc') ||
+                             nextText.toLowerCase().includes('llc') ||
+                             nextText.toLowerCase().includes('ltd') ||
+                             nextText.toLowerCase().includes('corp') ||
+                             nextText.toLowerCase().includes('company') ||
+                             nextText.toLowerCase().includes('technologies') ||
+                             nextText.toLowerCase().includes('solutions') ||
+                             nextText.toLowerCase().includes('services') ||
+                             nextText.toLowerCase().includes('group') ||
+                             nextText.toLowerCase().includes('financial') ||
+                             /^[A-Z]/.test(nextText));
+
+                        if (nextIsCompany || nextLooksLikeOrg) {
                             // Save previous entry
-                            if (currentEntry && currentEntry.title && currentEntry.company) {
-                                const key = currentEntry.title + '|' + currentEntry.company;
-                                if (!seenEntries.has(key)) {
+                            if (currentEntry && currentEntry.title) {
+                                const key = currentEntry.title + '|' + (currentEntry.company || '');
+                                if (!seenEntries.has(key) && currentEntry.company) {
                                     seenEntries.add(key);
                                     results.push(currentEntry);
                                 }
@@ -429,6 +694,23 @@ def _extract_experience(page):
                                 location: null,
                                 description: null
                             };
+                        }
+                    }
+
+                    // If we have a current entry without company and this looks like a company
+                    if (currentEntry && !currentEntry.company && !isCompany && !isDuration && !isLocation) {
+                        const looksLikeCompany = text.length > 2 && text.length < 100 &&
+                            (text.toLowerCase().includes('inc') ||
+                             text.toLowerCase().includes('llc') ||
+                             text.toLowerCase().includes('ltd') ||
+                             text.toLowerCase().includes('corp') ||
+                             text.toLowerCase().includes('company') ||
+                             text.toLowerCase().includes('technologies') ||
+                             text.toLowerCase().includes('solutions') ||
+                             text.toLowerCase().includes('financial') ||
+                             /^[A-Z][a-z]+ [A-Z]/.test(text));
+                        if (looksLikeCompany) {
+                            currentEntry.company = text;
                         }
                     }
                 }
@@ -449,9 +731,121 @@ def _extract_experience(page):
         return []
 
 
+def _extract_education_from_detail_page(page, profile_url):
+    """Navigate to education detail page and extract all entries."""
+    try:
+        edu_url = profile_url.rstrip("/") + "/details/education/"
+        page.goto(edu_url, wait_until="domcontentloaded")
+        _random_delay(1.5, 2.5)
+        _scroll_to_bottom(page)
+
+        education = page.evaluate("""
+            () => {
+                const results = [];
+                const main = document.querySelector('main');
+                if (!main) return [];
+
+                const skipTexts = new Set([
+                    'education', 'show all', 'see more', 'see less',
+                    'activities and societies:', 'add education'
+                ]);
+
+                const stopWords = [
+                    'ad options', 'more profiles for you', 'about',
+                    'accessibility', 'talent solutions', 'community guidelines',
+                    'careers', 'privacy', 'linkedin corporation', 'help center'
+                ];
+
+                const allText = [];
+                const walker = document.createTreeWalker(
+                    main,
+                    NodeFilter.SHOW_TEXT,
+                    null,
+                    false
+                );
+
+                let node;
+                while (node = walker.nextNode()) {
+                    const text = node.textContent.trim();
+                    if (text.length > 0) allText.push(text);
+                }
+
+                let currentEntry = null;
+                const seenSchools = new Set();
+
+                for (let i = 0; i < allText.length; i++) {
+                    const text = allText[i];
+                    const lower = text.toLowerCase();
+
+                    if (stopWords.some(sw => lower.includes(sw))) break;
+                    if (skipTexts.has(lower) || text.length < 2) continue;
+                    if (text === '·' || text === '-' || /^\\d+$/.test(text)) continue;
+
+                    // Date pattern
+                    const isDate = /\\d{4}\\s*[-–]\\s*\\d{4}/.test(text) ||
+                        /\\d{4}\\s*[-–]\\s*(Present|present)/.test(text) ||
+                        /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+\\d{4}/.test(text);
+
+                    // Degree patterns
+                    const isDegree = text.length > 3 && text.length < 200 &&
+                        (lower.includes('bachelor') || lower.includes('master') ||
+                         lower.includes('b.tech') || lower.includes('m.tech') ||
+                         lower.includes('b.s.') || lower.includes('m.s.') ||
+                         lower.includes('b.a.') || lower.includes('m.a.') ||
+                         lower.includes('ph.d') || lower.includes('mba') ||
+                         lower.includes('bsc') || lower.includes('msc') ||
+                         lower.includes('degree') || lower.includes('diploma'));
+
+                    // School patterns
+                    const isSchool = text.length > 5 && text.length < 150 &&
+                        !isDegree && !isDate &&
+                        (lower.includes('university') || lower.includes('college') ||
+                         lower.includes('institute') || lower.includes('school') ||
+                         lower.includes('academy') || lower.includes('polytechnic'));
+
+                    if (isDate && currentEntry) {
+                        currentEntry.dates = text;
+                        continue;
+                    }
+
+                    if (isDegree && currentEntry && !currentEntry.degree) {
+                        currentEntry.degree = text;
+                        continue;
+                    }
+
+                    if (isSchool) {
+                        // Save previous entry
+                        if (currentEntry && currentEntry.school && !seenSchools.has(currentEntry.school)) {
+                            seenSchools.add(currentEntry.school);
+                            results.push(currentEntry);
+                        }
+                        currentEntry = {
+                            school: text,
+                            degree: null,
+                            dates: null
+                        };
+                    }
+                }
+
+                // Save last entry
+                if (currentEntry && currentEntry.school && !seenSchools.has(currentEntry.school)) {
+                    results.push(currentEntry);
+                }
+
+                return results;
+            }
+        """)
+        return education if education and isinstance(education, list) else []
+    except Exception:
+        return []
+
+
 def _extract_education(page):
     """Extract all education entries by finding header text and using TreeWalker."""
     try:
+        # Scroll to education section and wait for load
+        _scroll_to_section(page, "Education")
+
         education = page.evaluate("""
             () => {
                 // Find section containing "Education" header
@@ -559,7 +953,7 @@ def _extract_education(page):
 
 
 def _extract_skills(page, profile_url):
-    """Navigate to the skills detail page and extract all skills using TreeWalker."""
+    """Navigate to the skills detail page and extract all skills."""
     try:
         skills_url = profile_url.rstrip("/") + "/details/skills/"
         page.goto(skills_url, wait_until="domcontentloaded")
@@ -571,7 +965,6 @@ def _extract_skills(page, profile_url):
                 const results = [];
                 const seen = new Set();
 
-                // Section headers and UI elements to skip
                 const skipTexts = new Set([
                     'all', 'industry knowledge', 'tools & technologies',
                     'interpersonal skills', 'other skills', 'skills',
@@ -580,7 +973,6 @@ def _extract_skills(page, profile_url):
                     'add skill', 'take skill quiz', 'load more'
                 ]);
 
-                // Stop words - when we see these, stop collecting
                 const stopWords = [
                     'ad options', 'why am i seeing', 'more profiles for you',
                     'about', 'accessibility', 'talent solutions',
@@ -588,11 +980,9 @@ def _extract_skills(page, profile_url):
                     'linkedin corporation', 'help center'
                 ];
 
-                // Find the main content area
                 const main = document.querySelector('main');
                 if (!main) return [];
 
-                // Collect all text from the page
                 const allText = [];
                 const walker = document.createTreeWalker(
                     main,
@@ -609,24 +999,14 @@ def _extract_skills(page, profile_url):
                     }
                 }
 
-                // Filter to get skill names
                 for (const text of allText) {
                     const lower = text.toLowerCase();
 
-                    // Check if we hit a stop word - stop collecting
-                    if (stopWords.some(sw => lower.includes(sw))) {
-                        break;
-                    }
-
-                    // Skip if already seen or in skip list
+                    if (stopWords.some(sw => lower.includes(sw))) break;
                     if (seen.has(lower) || skipTexts.has(lower)) continue;
-
-                    // Skip numbers, very short text, or long text
                     if (text.length < 2 || text.length > 60) continue;
-                    if (/^\\d+$/.test(text)) continue;
-                    if (/^\\d+\\s*(endorsement|connection|skill)/i.test(text)) continue;
-
-                    // Skip UI elements and company names in endorsements
+                    if (/^\d+$/.test(text)) continue;
+                    if (/^\d+\s*(endorsement|connection|skill)/i.test(text)) continue;
                     if (text.includes('·') || text === '-') continue;
                     if (text.includes('Show') || text.includes('Add') ||
                         text.includes('Take') || text.includes('Quiz')) continue;
@@ -634,7 +1014,6 @@ def _extract_skills(page, profile_url):
                     if (text.includes(' at ') || text.includes(' @ ')) continue;
                     if (text.includes('Connect')) continue;
 
-                    // Add as skill
                     results.push(text);
                     seen.add(lower);
                 }
@@ -648,7 +1027,7 @@ def _extract_skills(page, profile_url):
 
 
 def _extract_certifications(page, profile_url):
-    """Navigate to the certifications detail page and extract entries using TreeWalker."""
+    """Navigate to the certifications detail page and extract entries."""
     try:
         certs_url = profile_url.rstrip("/") + "/details/certifications/"
         page.goto(certs_url, wait_until="domcontentloaded")
@@ -658,19 +1037,15 @@ def _extract_certifications(page, profile_url):
         certs = page.evaluate("""
             () => {
                 const results = [];
-
-                // Find the main content area
                 const main = document.querySelector('main');
                 if (!main) return [];
 
-                // Skip texts
                 const skipTexts = new Set([
                     'certifications', 'licenses & certifications', 'show all',
                     'see more', 'see less', 'add certification', 'credential id',
                     'show credential', 'see credential', 'skills:'
                 ]);
 
-                // Stop words - when we see these, stop collecting
                 const stopWords = [
                     'ad options', 'why am i seeing', 'more profiles for you',
                     'about', 'accessibility', 'talent solutions',
@@ -678,7 +1053,6 @@ def _extract_certifications(page, profile_url):
                     'linkedin corporation', 'help center', '· 3rd'
                 ];
 
-                // Collect all text from the page
                 const allText = [];
                 const walker = document.createTreeWalker(
                     main,
@@ -690,12 +1064,9 @@ def _extract_certifications(page, profile_url):
                 let node;
                 while (node = walker.nextNode()) {
                     const text = node.textContent.trim();
-                    if (text.length > 0) {
-                        allText.push(text);
-                    }
+                    if (text.length > 0) allText.push(text);
                 }
 
-                // Parse certifications
                 let currentEntry = null;
                 const seenCerts = new Set();
 
@@ -703,21 +1074,13 @@ def _extract_certifications(page, profile_url):
                     const text = allText[i];
                     const lower = text.toLowerCase();
 
-                    // Check if we hit a stop word - stop collecting
-                    if (stopWords.some(sw => lower.includes(sw))) {
-                        break;
-                    }
-
-                    // Skip UI elements
+                    if (stopWords.some(sw => lower.includes(sw))) break;
                     if (skipTexts.has(lower) || text.length < 2) continue;
-                    if (text === '·' || text === '-' || /^\\d+$/.test(text)) continue;
+                    if (text === '·' || text === '-' || /^\d+$/.test(text)) continue;
                     if (text.startsWith('Credential ID')) continue;
                     if (text.endsWith('.pdf')) continue;
 
-                    // Date pattern: "Issued Jan 2023"
                     const isDate = /^issued/i.test(text);
-
-                    // Known certification issuers (more specific)
                     const isIssuer = (lower.includes('coursera') || lower.includes('udemy') ||
                         lower.includes('linkedin learning') || lower.includes('google') ||
                         lower.includes('microsoft') || lower.includes('aws') ||
@@ -734,12 +1097,9 @@ def _extract_certifications(page, profile_url):
                         continue;
                     }
 
-                    // Certification name - medium length, descriptive
                     if (text.length > 5 && text.length < 150 && !isDate && !isIssuer) {
-                        // Skip skill lists
                         if (lower.includes('machine learning,') || lower.includes('algorithms,')) continue;
 
-                        // If previous entry exists and has name, save it (deduplicated)
                         if (currentEntry && currentEntry.name) {
                             if (!seenCerts.has(currentEntry.name.toLowerCase())) {
                                 seenCerts.add(currentEntry.name.toLowerCase());
@@ -747,15 +1107,10 @@ def _extract_certifications(page, profile_url):
                             }
                         }
 
-                        currentEntry = {
-                            name: text,
-                            issuing_org: null,
-                            date: null
-                        };
+                        currentEntry = { name: text, issuing_org: null, date: null };
                     }
                 }
 
-                // Save last entry
                 if (currentEntry && currentEntry.name) {
                     if (!seenCerts.has(currentEntry.name.toLowerCase())) {
                         results.push(currentEntry);
@@ -845,130 +1200,157 @@ def _extract_recent_activity(page, profile_url):
         return []
 
 
+def _is_session_expired(page) -> bool:
+    """Returns True if the current page indicates the session has expired."""
+    page_url = page.url.lower()
+    if any(x in page_url for x in ["/login", "/authwall", "/signup", "/checkpoint"]):
+        return True
+    try:
+        h1_text = page.locator("h1").first.inner_text(timeout=3000).strip().lower()
+        if h1_text in ("join linkedin", "sign in", "sign up"):
+            return True
+    except Exception:
+        pass
+    return False
+
+
 # ──────────────────────────────────────────────
 # Public API
 # ──────────────────────────────────────────────
 
 def setup_session():
-    """One-time setup: opens a browser for manual login. Session is persisted."""
+    """
+    Manual fallback: opens a browser for manual login.
+    Use this if auto_login() fails due to CAPTCHA or verification challenges.
+    """
     with sync_playwright() as p:
-        launch_options = {
-            "user_data_dir": BROWSER_DATA_DIR,
-            "headless": False,
-            "args": BROWSER_ARGS,
-            "viewport": VIEWPORT,
-            "user_agent": USER_AGENT,
-        }
-        browser = p.chromium.launch_persistent_context(**launch_options)
-        page = browser.new_page()
+        browser = p.chromium.launch(headless=False, args=BROWSER_ARGS)
+        context = browser.new_context(user_agent=USER_AGENT, viewport=VIEWPORT)
+        page = context.new_page()
         page.goto("https://www.linkedin.com/login")
 
         print("=" * 50)
         print("Log in to LinkedIn in the browser window.")
-        print("You can use 'Sign in with Google' or any method.")
         print("Press ENTER here after you have logged in.")
         print("=" * 50)
         input()
 
+        os.makedirs(os.path.dirname(SESSION_FILE) or ".", exist_ok=True)
+        context.storage_state(path=SESSION_FILE)
         browser.close()
-        print("Session saved to:", BROWSER_DATA_DIR)
+        print("Session saved to:", SESSION_FILE)
 
 
-def scrape_profile(profile_url: str, headless: bool = True) -> dict:
+def scrape_profile(profile_url: str, headless: bool = True, _is_retry: bool = False) -> dict:
     """
     Scrape a LinkedIn profile and return structured data.
+
+    - If no session exists, auto-logs in using LINKEDIN_EMAIL / LINKEDIN_PASSWORD from .env
+    - If session expires mid-scrape, auto-logs in again and retries once
+    - Falls back gracefully if LinkedIn blocks the auto-login (CAPTCHA etc.)
 
     Args:
         profile_url: Full LinkedIn profile URL (e.g. https://www.linkedin.com/in/username)
         headless: Run browser in headless mode (default True)
 
     Returns:
-        Dict with keys: basic_info, about, experience, education, skills, certifications, recent_posts
+        Dict with keys: profile_url, basic_info, about, experience,
+                        education, skills, certifications, recent_posts, scraped_date
     """
-    # Normalize URL
     profile_url = profile_url.rstrip("/")
     if not profile_url.startswith("https://"):
         profile_url = "https://" + profile_url
 
+    # No session file — try to auto-login before doing anything else
+    if not os.path.exists(SESSION_FILE):
+        print("No session file found. Attempting auto-login...")
+        if not auto_login():
+            raise RuntimeError(
+                "Auto-login failed. LinkedIn may require manual verification.\n"
+                "Run: python scraper.py --setup"
+            )
+
     result = {"profile_url": profile_url}
 
-    with sync_playwright() as p:
-        launch_options = {
-            "user_data_dir": BROWSER_DATA_DIR,
-            "headless": headless,
-            "args": BROWSER_ARGS,
-            "viewport": VIEWPORT,
-            "user_agent": USER_AGENT,
-        }
-        browser = p.chromium.launch_persistent_context(**launch_options)
-
-        page = browser.new_page()
-
-        try:
-            # Navigate to profile
-            page.goto(profile_url, wait_until="domcontentloaded")
-
-            # Wait for page to fully load and render
-            page.wait_for_load_state("load")
-            _random_delay(2.0, 3.5)
-
-            # Scroll to trigger lazy loading of content
-            page.evaluate("window.scrollTo(0, 500)")
-            _random_delay(1.5, 2.5)
-            page.evaluate("window.scrollTo(0, 0)")
-            _random_delay(1.0, 2.0)
-
-            # Check for login redirect or authwall
-            page_url = page.url.lower()
-            if any(x in page_url for x in ["/login", "/authwall", "/signup", "/checkpoint"]):
-                browser.close()
-                raise RuntimeError(
-                    "Session expired or not set up. Run: python scraper.py --setup"
-                )
-
-            # Double-check: if h1 says "Join LinkedIn" or "Sign in", we're on authwall
+    with _SCRAPE_SEMAPHORE:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=headless, args=BROWSER_ARGS)
+            context = None
             try:
-                h1_text = page.locator("h1").first.inner_text(timeout=3000).strip()
-                if h1_text.lower() in ("join linkedin", "sign in", "sign up"):
+                context = browser.new_context(
+                    storage_state=SESSION_FILE,
+                    user_agent=USER_AGENT,
+                    viewport=VIEWPORT,
+                )
+                page = context.new_page()
+                page.set_default_timeout(30_000)
+
+                page.goto(profile_url, wait_until="domcontentloaded")
+                page.wait_for_load_state("load")
+                _random_delay(2.0, 3.5)
+
+                page.evaluate("window.scrollTo(0, 500)")
+                _random_delay(1.5, 2.5)
+                page.evaluate("window.scrollTo(0, 0)")
+                _random_delay(1.0, 2.0)
+
+                # Scroll to bottom to load all lazy-loaded sections
+                _scroll_to_bottom(page)
+                _random_delay(1.0, 1.5)
+
+                # Click all "Show all" buttons to expand sections
+                _click_show_all_buttons(page)
+                _random_delay(0.5, 1.0)
+
+                # Session expired — try to auto-login and retry the scrape once
+                if _is_session_expired(page):
+                    if _is_retry:
+                        # Already retried once — give up
+                        raise RuntimeError(
+                            "Session expired even after auto-login refresh.\n"
+                            "Run: python scraper.py --setup  to log in manually."
+                        )
+                    print("Session expired. Attempting auto-login and retry...")
+                    context.close()
                     browser.close()
-                    raise RuntimeError(
-                        "Session expired or not set up. Run: python scraper.py --setup"
-                    )
-            except RuntimeError:
-                raise
-            except Exception:
-                pass
+                    context = None
+                    if auto_login():
+                        # Recurse once with _is_retry=True so we don't loop infinitely
+                        return scrape_profile(profile_url, headless, _is_retry=True)
+                    else:
+                        raise RuntimeError(
+                            "Session expired and auto-login failed.\n"
+                            "Run: python scraper.py --setup  to log in manually."
+                        )
 
-            print("Extracting basic info...")
-            result["basic_info"] = _extract_basic_info(page)
+                print("Extracting basic info...")
+                result["basic_info"] = _extract_basic_info(page)
 
-            print("Extracting about...")
-            result["about"] = _extract_about(page)
+                print("Extracting about...")
+                result["about"] = _extract_about(page)
 
-            print("Extracting experience...")
-            result["experience"] = _extract_experience(page)
+                print("Extracting experience...")
+                result["experience"] = _extract_experience_from_detail_page(page, profile_url)
 
-            print("Extracting education...")
-            result["education"] = _extract_education(page)
+                print("Extracting education...")
+                result["education"] = _extract_education_from_detail_page(page, profile_url)
 
-            print("Extracting skills...")
-            result["skills"] = _extract_skills(page, profile_url)
+                print("Extracting skills...")
+                result["skills"] = _extract_skills(page, profile_url)
 
-            # Certifications and posts are kept commented - uncomment when needed
-            _random_delay(1.0, 2.0)
-            print("Extracting certifications...")
-            result["certifications"] = _extract_certifications(page, profile_url)
+                _random_delay(1.0, 2.0)
+                print("Extracting certifications...")
+                result["certifications"] = _extract_certifications(page, profile_url)
 
-            # _random_delay(1.0, 2.0)
-            print("Extracting recent posts...")
-            result["recent_posts"] = _extract_recent_activity(page, profile_url)
+                print("Extracting recent posts...")
+                result["recent_posts"] = _extract_recent_activity(page, profile_url)
 
-            scraped_date_str = date.strftime("%Y-%m-%d %H:%M:%S")
-            print('Scraped Date:', scraped_date_str)
-            result['scraped_date'] = scraped_date_str
+                result["scraped_date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        finally:
-            browser.close()
+            finally:
+                if context:
+                    context.close()
+                browser.close()
 
     return result
 
@@ -979,15 +1361,19 @@ def scrape_profile(profile_url: str, headless: bool = True) -> dict:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="LinkedIn Profile Scraper")
-    parser.add_argument("--setup", action="store_true", help="Set up browser session (manual login)")
+    parser.add_argument("--setup", action="store_true", help="Manual login fallback (opens browser)")
+    parser.add_argument("--login", action="store_true", help="Auto-login using .env credentials")
     parser.add_argument("--url", type=str, help="LinkedIn profile URL to scrape")
     parser.add_argument("--output", type=str, help="Save output to JSON file")
-    parser.add_argument("--visible", action="store_true", help="Run browser in visible (non-headless) mode")
+    parser.add_argument("--visible", action="store_true", help="Run browser in visible mode")
 
     args = parser.parse_args()
 
     if args.setup:
         setup_session()
+    elif args.login:
+        success = auto_login()
+        print("Login successful!" if success else "Login failed.")
     elif args.url:
         data = scrape_profile(args.url, headless=not args.visible)
         output = json.dumps(data, indent=2, ensure_ascii=False)
