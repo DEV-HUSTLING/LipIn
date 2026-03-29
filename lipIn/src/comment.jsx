@@ -196,40 +196,63 @@ useEffect(() => {
 
     if (!buttonElement) return;
 
-    const classList = buttonElement.className || '';
-    const buttonText = buttonElement.textContent?.trim().toLowerCase() || '';
+    console.log('🔘 Button clicked:', {
+      text: buttonElement.textContent?.trim().substring(0, 30),
+      class: buttonElement.className?.toString().substring(0, 80),
+      componentkey: buttonElement.getAttribute('componentkey')?.substring(0, 60),
+      ariaLabel: buttonElement.getAttribute('aria-label'),
+    });
 
-    const isPostButton =
-      classList.includes('comments-comment-box__submit-button--cr') ||
-      classList.includes('comments-comment-box__submit-button') ||
-      buttonText === 'post' ||
-      buttonText === 'comment';
+    // Post action bar buttons (Like, Comment, Repost, Send) all have class 'dcc2ef92'.
+    // The submit button inside the editor does not — skip action bar clicks entirely.
+    if (buttonElement.className?.includes('dcc2ef92')) return;
 
-    if (!isPostButton) return;
+    // The submit button must be in the same editor container as actualCmntArea.
+    // Walk up 6 levels from actualCmntArea — if any ancestor contains the button,
+    // it's the submit button. The feed's "Comment" action button lives elsewhere in the DOM.
+    if (!actualCmntArea) return;
+    let ancestor = actualCmntArea;
+    let isInEditorContainer = false;
+    for (let i = 0; i < 6; i++) {
+      ancestor = ancestor.parentElement;
+      if (!ancestor) break;
+      if (ancestor.contains(buttonElement)) {
+        isInEditorContainer = true;
+        break;
+      }
+    }
+    if (!isInEditorContainer) return;
 
-    // console.log('🔘 Comment post button clicked!');
-
+    // Also confirm it's inside our specific post (handles multiple open comment boxes)
     const isInOurPost = postEl?.contains(buttonElement);
     if (!isInOurPost) return;
 
     if (isSaving.current) return;
+    isSaving.current = true; // Set immediately before any await to prevent double-saves
 
     // Read text SYNCHRONOUSLY — LinkedIn clears the editor on submit
     const text = actualCmntArea?.textContent || actualCmntArea?.innerText || '';
 
-    if (!text || text.trim() === '' || text === 'Generating comment...') return;
+    if (!text || text.trim() === '' || text === 'Generating comment...') {
+      isSaving.current = false;
+      return;
+    }
 
     // Re-read from storage at click time in case url state wasn't set yet on mount
     const storageResult = await new Promise(resolve => chrome.storage.local.get('profileURl', resolve));
     const profileUrl = storageResult.profileURl;
-    // console.log('📦 profileURl from storage at click time:', profileUrl);
 
-    if (!profileUrl) return;
+    if (!profileUrl) {
+      isSaving.current = false;
+      return;
+    }
 
     const profileSlug = profileUrl.split("/in/")[1]?.split("/")[0];
-    if (!profileSlug) return;
+    if (!profileSlug) {
+      isSaving.current = false;
+      return;
+    }
 
-    isSaving.current = true;
     const trimmedText = text.trim();
 
     try {
