@@ -8,7 +8,7 @@ echo "=== Starting build script ==="
 # Install Python dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
-
+playwright install --with-deps chromium
 # Install Playwright browser (let Playwright manage its own path)
 echo "=== Installing Playwright Chromium ==="
 playwright install chromium
