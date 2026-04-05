@@ -8,7 +8,7 @@ import json
 import time
 from config import db, async_client
 from .prompts import ProfileScoringPrompt
-
+from fastapi.concurrency import run_in_threadpool
 router = APIRouter(prefix="/profile_analyst", tags=["Profile Analyst"])
 # router for getting the profile data
 
@@ -18,10 +18,10 @@ class ScrapeRequest(BaseModel):
 
 
 @router.post("/scrape")
-def scrape(req: ScrapeRequest):
+async def scrape(req: ScrapeRequest):
     """Scrape a LinkedIn profile and return structured data."""
     try:
-        data = scrape_profile(req.profile_url, headless=req.headless)
+        data = await run_in_threadpool(scrape_profile, req.profile_url, req.headless)
         doc_ref = None
         if data:
             doc_id = req.profile_url.rstrip("/").split("/")[-1]
