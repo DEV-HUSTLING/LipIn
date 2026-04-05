@@ -7,11 +7,10 @@ from lipInDashboard.helper import Clean_JSON
 import json
 import time
 from config import db, async_client
-from cache import get_cached_profile, set_cached_profile
 from .prompts import ProfileScoringPrompt
 
 router = APIRouter(prefix="/profile_analyst", tags=["Profile Analyst"])
-
+# router for getting the profile data
 
 class ScrapeRequest(BaseModel):
     profile_url: str
@@ -23,12 +22,16 @@ def scrape(req: ScrapeRequest):
     """Scrape a LinkedIn profile and return structured data."""
     try:
         data = scrape_profile(req.profile_url, headless=req.headless)
+        doc_ref = None
         if data:
             doc_id = req.profile_url.rstrip("/").split("/")[-1]
             _, doc_ref = db.collection("users").document(doc_id).collection('profileInfo').add(data)
-        return {"success": True, "data": data,
-                "document_id": doc_ref.id, "message": "Profile scraped and added to database successfully."
-                }
+        return {
+            "success": True,
+            "data": data,
+            "document_id": doc_ref.id if doc_ref else None,
+            "message": "Profile scraped and added to database successfully.",
+        }
     except RuntimeError as e:
         raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:
@@ -57,18 +60,6 @@ def run_setup():
 async def score_profile(profile_url: str = Query(...)):
     start_time = time.time()
     print(f"[score_profile] Request started for: {profile_url}")
-
-    # Check cache first
-    cache_start = time.time()
-    cache_key = f"score:{profile_url.strip()}"
-    cached_data = await get_cached_profile(cache_key)
-    cache_time = time.time() - cache_start
-    print(f"[score_profile] Cache check took: {cache_time:.3f}s")
-
-    if cached_data:
-        total_time = time.time() - start_time
-        print(f"[score_profile] Cache HIT - Total time: {total_time:.3f}s")
-        return {"success": True, "data": cached_data}
 
     # Run Firestore call in thread pool to avoid blocking event loop
     def fetch_profile_data():
@@ -173,13 +164,6 @@ async def score_profile(profile_url: str = Query(...)):
                 "post_count": len(recent_posts) if recent_posts else 0
             }
     parsed_profile_builder["section_scores"] = section_scores
-
-    # Only cache if data is valid (has section_scores with content)
-    if section_scores and len(section_scores) > 0:
-        await set_cached_profile(cache_key, parsed_profile_builder)
-        print(f"[score_profile] Data cached successfully")
-    else:
-        print(f"[score_profile] WARNING: Not caching - empty or invalid data")
 
     total_time = time.time() - start_time
     print(f"[score_profile] Total request time: {total_time:.3f}s (LLM: {llm_time:.3f}s)")

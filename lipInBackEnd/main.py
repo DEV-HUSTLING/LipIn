@@ -47,13 +47,6 @@ async def welcome():
     return {"message": "Welcome to the LipIn BackEnd API!"}
 
 
-@app.delete("/clear-cache")
-async def clear_cache():
-    from cache import clear_all_cache
-    deleted = clear_all_cache()
-    return {"success": True, "message": f"Cleared {deleted} cached entries"}
-
-
 if __name__ == "__main__":
     import os
     import uvicorn

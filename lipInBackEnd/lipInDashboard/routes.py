@@ -8,7 +8,6 @@ import time
 import asyncio
 from PyPDF2 import PdfReader
 from config import db, client, async_client
-from cache import get_cached_profile, set_cached_profile
 from llm_utils import single_llm_call
 from .prompts import (
     Comments,
@@ -142,18 +141,6 @@ async def get_profile_builder(profile_url: str = Query(...), niche: str = Query(
     print(f"[profileBuilder] Request started for: {profile_url}, niche: {niche}")
 
     try:
-        # Check cache first
-        cache_start = time.time()
-        cache_key = f"profile_builder:{profile_url.strip()}:{niche or 'general'}"
-        cached_data = await get_cached_profile(cache_key)
-        cache_time = time.time() - cache_start
-        print(f"[profileBuilder] Cache check took: {cache_time:.3f}s")
-
-        if cached_data:
-            total_time = time.time() - start_time
-            print(f"[profileBuilder] Cache HIT - Total time: {total_time:.3f}s")
-            return {"success": True, "message": "Data retrieved from cache", "data": cached_data}
-
         # Run Firestore calls in thread pool to avoid blocking event loop
         def fetch_profile_info():
             data_ref = (db.collection("users").document(profile_url.strip())
@@ -330,18 +317,6 @@ Include "current" field with the user's actual data and "suggestions" array with
         if parsed_profile_builder is None:
             raise HTTPException(500, "Failed to generate profile builder data")
 
-        # Only cache if data is valid (has headline or about or experience)
-        has_valid_data = (
-            parsed_profile_builder.get("headline") or
-            parsed_profile_builder.get("about") or
-            parsed_profile_builder.get("experience")
-        )
-        if has_valid_data:
-            await set_cached_profile(cache_key, parsed_profile_builder)
-            print(f"[profileBuilder] Data cached successfully")
-        else:
-            print(f"[profileBuilder] WARNING: Not caching - empty or invalid data")
-
         total_time = time.time() - start_time
         print(f"[profileBuilder] Total request time: {total_time:.3f}s (LLM: {llm_time:.3f}s)")
 
@@ -361,12 +336,6 @@ async def get_personal_info(profile_url: str = Query(...)):
     try:
         if not profile_url or profile_url.strip() == "":
             raise HTTPException(400, "Profile URL cannot be empty")
-
-        # Check cache first
-        cached_data = await get_cached_profile(f"analysis:{profile_url.strip()}")
-        if cached_data:
-            print(f"[profileAnalysis] Cache hit - {time.time() - start_time:.2f}s")
-            return {"success": True, "message": "Data retrieved from cache", "data": cached_data}
 
         # Run Firestore call in thread pool to avoid blocking
         def fetch_personal_info():
@@ -475,13 +444,6 @@ async def get_personal_info(profile_url: str = Query(...)):
                     "error": str(e),
                     "raw_response": cleaned_niche_analysis
                 }
-
-        # Only cache if data is valid (has niche_recommendations)
-        if combined_result.get("niche_recommendations"):
-            await set_cached_profile(f"analysis:{profile_url.strip()}", combined_result)
-            print(f"[profileAnalysis] Data cached successfully")
-        else:
-            print(f"[profileAnalysis] WARNING: Not caching - empty or invalid data")
 
         total_time = time.time() - start_time
         print(f"[profileAnalysis] Total time: {total_time:.2f}s")
@@ -780,13 +742,6 @@ def ask_ai_chats(body: AskAIChat):
 @router.post("/nicheRecommendations")
 async def get_niche_recommendations(body: nicheRecommend):
     try:
-        # Check cache first
-        cache_key = f"niche_rec:{body.profile_url}:{body.niche}"
-        cached_data = await get_cached_profile(cache_key)
-        if cached_data:
-            print(f"Cache hit for niche recommendations: {body.profile_url}")
-            return {"success": True, "message": "Data retrieved from cache", "data": cached_data}
-
         documents = []
         doc_ref = (
             db.collection("users")
@@ -836,9 +791,6 @@ async def get_niche_recommendations(body: nicheRecommend):
                 "error": str(e),
                 "raw_niche_recommendations_response": cleaned_niche_analysis
             }
-
-        # Cache the result
-        await set_cached_profile(cache_key, recommendations_data)
 
         return {"success": True, "message": "Niche recommendations generated successfully", "data": recommendations_data}
 

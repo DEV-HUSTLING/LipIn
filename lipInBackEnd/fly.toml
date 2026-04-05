@@ -20,5 +20,5 @@ primary_region = "sjc"
   cpus = 1
 
 [mounts]
-  source = "linkedin_session"
-  destination = "/data/linkedin_browser_data"
+source = "linkedin_session"
+destination = "/data"

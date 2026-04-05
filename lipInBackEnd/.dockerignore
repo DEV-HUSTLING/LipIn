@@ -28,8 +28,8 @@ pytest_cache/
 *.md
 docs/
 
-# Local browser data (will be created at runtime)
-profileAnalyst/linkedin_browser_data/
+# LinkedIn session file (mount at runtime on Fly /data; never bake into image)
+profileAnalyst/linkedin_session.json
 
 # Misc
 .DS_Store
